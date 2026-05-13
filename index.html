@@ -148,7 +148,7 @@
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="logo"><span class="logo-alb">ALB</span><span class="logo-udget">udget</span></div>
-  <span class="topbar-month" id="topbar-month"></span>
+  <span class="topbar-month">v1.0</span>
 </div>
 
 <!-- REGISTRER -->
@@ -182,16 +182,15 @@
 <!-- OVERSIGT -->
 <div class="screen" id="s-oversigt">
   <div style="margin-top:4px;">
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Året <span id="ov-year-label"></span></span>
-        <span id="ov-year-total" style="font-size:15px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0;"></span>
+    <div id="year-chart-wrap" style="display:none;margin-bottom:12px;">
+      <div class="card">
+        <div class="card-title"><span id="ov-year-label"></span></div>
+        <div class="chart-wrap" style="height:150px;"><canvas id="year-chart" role="img" aria-label="Forbrug per måned"></canvas></div>
       </div>
-      <div class="chart-wrap" style="height:140px;"><canvas id="year-chart" role="img" aria-label="Forbrug per måned"></canvas></div>
     </div>
     <div class="month-nav">
       <button class="month-nav-btn" onclick="changeMonth(-1)">‹ Forrige</button>
-      <span class="month-nav-label" id="ov-month-label"></span>
+      <span class="month-nav-label" id="ov-month-label" onclick="toggleYearChart()" style="cursor:pointer;"></span>
       <button class="month-nav-btn" onclick="changeMonth(1)">Næste ›</button>
     </div>
     <div class="total-badge">
@@ -579,7 +578,6 @@ function changeMonth(dir) {
 function renderOversigt() {
   const mo = ovMonth.getMonth(), yr = ovMonth.getFullYear();
   document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
-  renderYearChart();
   const rel = entries.filter(e => { const d = new Date(e.date); return d.getMonth() === mo && d.getFullYear() === yr; });
   const shown = ovFilterCat ? rel.filter(e => e.catId === ovFilterCat) : rel;
   document.getElementById('ov-total').textContent = fmt(shown.reduce((s, e) => s + e.amount, 0)) + ' kr';
@@ -652,9 +650,18 @@ async function confirmEdit() {
 let reportChartInst = null;
 let yearChartInst = null;
 
+let yearChartVisible = false;
+
+function toggleYearChart() {
+  yearChartVisible = !yearChartVisible;
+  const wrap = document.getElementById('year-chart-wrap');
+  wrap.style.display = yearChartVisible ? 'block' : 'none';
+  if (yearChartVisible) renderYearChart();
+}
+
 function renderYearChart() {
   const yr = ovMonth.getFullYear();
-  document.getElementById('ov-year-label').textContent = yr;
+  document.getElementById('ov-year-label').textContent = yr + ' — klik på en måned';
 
   const monthTotals = Array(12).fill(0);
   entries.forEach(e => {
@@ -662,13 +669,8 @@ function renderYearChart() {
     if (d.getFullYear() === yr) monthTotals[d.getMonth()] += e.amount;
   });
 
-  const now = new Date();
-  const currentMonth = now.getFullYear() === yr ? now.getMonth() : 11;
   const labels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
-  const colors = monthTotals.map((_, i) => i === ovMonth.getMonth() ? '#378ADD' : 'rgba(55,138,221,0.35)');
-
-  const yearTotal = monthTotals.slice(0, currentMonth + 1).reduce((s, v) => s + v, 0);
-  document.getElementById('ov-year-total').textContent = fmt(yearTotal) + ' kr';
+  const colors = monthTotals.map((_, i) => i === ovMonth.getMonth() ? '#378ADD' : 'rgba(55,138,221,0.4)');
 
   if (yearChartInst) { yearChartInst.destroy(); yearChartInst = null; }
   yearChartInst = new Chart(document.getElementById('year-chart'), {
@@ -679,7 +681,10 @@ function renderYearChart() {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) + ' kr' } } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => fmt(ctx.raw) + ' kr' } }
+      },
       scales: {
         x: { ticks: { font: { size: 10 } }, grid: { display: false } },
         y: { ticks: { callback: v => fmt(v), font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
@@ -689,6 +694,8 @@ function renderYearChart() {
         const mo = els[0].index;
         ovMonth = new Date(yr, mo, 1);
         ovFilterCat = null;
+        yearChartVisible = false;
+        document.getElementById('year-chart-wrap').style.display = 'none';
         renderOversigt();
       }
     }
