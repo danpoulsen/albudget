@@ -221,10 +221,7 @@
 <!-- NAVBAR -->
 <nav class="navbar">
   <button class="nav-item active" onclick="showScreen('register',this)" id="nav-register">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M9 12h6" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity="0.15"/><path d="M8.5 9.5C9.2 8 10.5 7 12 7s2.8 1 3.5 2.5"/></svg>
-    <svg viewBox="0 0 24 24" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M3 7h4l2-4h6l2 4h4v13H3z"/></svg>
-    <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 1 1 0 10A5 5 0 0 1 12 2zm0 12c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/></svg>
-    <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M12 12v4M10 14h4"/></svg>
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M10 10h4"/><path d="M9 14s1-1 3-1 3 1 3 1"/></svg>
     Registrer
   </button>
   <button class="nav-item" onclick="showScreen('oversigt',this)" id="nav-oversigt">
@@ -299,16 +296,10 @@
 <div class="modal-overlay" id="modal-cat">
   <div class="modal">
     <h3 id="cat-modal-title">Tilføj kategori</h3>
-    <div style="display:flex;gap:12px;margin-bottom:12px;">
-      <div style="flex:0 0 auto;">
-        <div class="field-label">Emoji</div>
-        <input class="field emoji-field" type="text" id="cat-emoji" maxlength="2" placeholder="🛒"/>
-      </div>
-      <div style="flex:1;">
-        <div class="field-label">Navn</div>
-        <input class="field" type="text" id="cat-name" placeholder="Fx Dagligvarer"/>
-      </div>
-    </div>
+    <div class="field-label">Navn</div>
+    <input class="field" type="text" id="cat-name" placeholder="Fx Dagligvarer"/>
+    <div class="field-label">Emoji</div>
+    <div id="emoji-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
     <div class="field-label">Farve</div>
     <div class="color-options" id="color-opts"></div>
     <div class="modal-btns">
@@ -687,6 +678,33 @@ function renderSettings() {
   });
 }
 
+const EMOJIS = [
+  '🛒','🍔','🍕','🍣','☕','🍷',
+  '👶','🧸','🍼','❤️','👨‍👩‍👧','🏠',
+  '🚗','🚌','✈️','⛽','🅿️','🚲',
+  '💊','🏋️','💇','🎬','🎮','📚',
+  '👗','👟','💄','🛍️','🎁','💰',
+  '🔧','🧹','💡','📱','🖥️','📦',
+];
+let selectedEmoji = EMOJIS[0];
+
+function renderEmojiPicker(sel) {
+  selectedEmoji = sel || EMOJIS[0];
+  const el = document.getElementById('emoji-picker'); el.innerHTML = '';
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'font-size:22px;width:40px;height:40px;border-radius:8px;border:2px solid transparent;background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;';
+    btn.textContent = e;
+    if (e === selectedEmoji) btn.style.borderColor = 'var(--blue)';
+    btn.onclick = () => {
+      selectedEmoji = e;
+      document.querySelectorAll('#emoji-picker button').forEach(b => b.style.borderColor = 'transparent');
+      btn.style.borderColor = 'var(--blue)';
+    };
+    el.appendChild(btn);
+  });
+}
+
 function renderColorOpts(selectedColor) {
   const el = document.getElementById('color-opts'); el.innerHTML = '';
   COLORS.forEach(c => {
@@ -701,8 +719,8 @@ function renderColorOpts(selectedColor) {
 function openAddCat() {
   editingCatId = null;
   document.getElementById('cat-modal-title').textContent = 'Tilføj kategori';
-  document.getElementById('cat-emoji').value = '';
   document.getElementById('cat-name').value = '';
+  renderEmojiPicker(EMOJIS[0]);
   renderColorOpts(COLORS[0]);
   openModal('modal-cat');
 }
@@ -710,23 +728,22 @@ function openAddCat() {
 function openEditCat(id) {
   const c = getCat(id); editingCatId = id;
   document.getElementById('cat-modal-title').textContent = 'Rediger kategori';
-  document.getElementById('cat-emoji').value = c.emoji;
   document.getElementById('cat-name').value = c.name;
+  renderEmojiPicker(c.emoji);
   renderColorOpts(c.color);
   openModal('modal-cat');
 }
 
 async function saveCat() {
-  const emoji = document.getElementById('cat-emoji').value.trim() || '📦';
   const name = document.getElementById('cat-name').value.trim();
   const selColor = document.querySelector('.color-opt.sel');
   const color = selColor ? selColor.style.background : COLORS[0];
   if (!name) { showToast('Skriv et navn'); return; }
   if (editingCatId) {
-    await db.collection('categories').doc(editingCatId).update({ emoji, name, color });
+    await db.collection('categories').doc(editingCatId).update({ emoji: selectedEmoji, name, color });
     showToast('Kategori opdateret ✓');
   } else {
-    await db.collection('categories').add({ emoji, name, color, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await db.collection('categories').add({ emoji: selectedEmoji, name, color, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     showToast('Kategori tilføjet ✓');
   }
   closeModal('modal-cat');
