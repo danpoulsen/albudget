@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>ALBudget</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --blue: #378ADD;
+    --blue-light: #E6F1FB;
+    --green: #1D9E75;
+    --red: #E24B4A;
+    --text: #1a1a1a;
+    --text-muted: #6b7280;
+    --border: rgba(0,0,0,0.1);
+    --bg: #f5f5f0;
+    --card: #ffffff;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); max-width: 480px; margin: 0 auto; min-height: 100vh; }
+  
+  /* TOPBAR */
+  .topbar { background: var(--card); border-bottom: 1px solid var(--border); padding: 14px 16px 12px; position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: baseline; }
+  .logo-alb { font-size: 20px; font-weight: 700; color: var(--blue); letter-spacing: -0.5px; }
+  .logo-udget { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+  .topbar-month { font-size: 13px; color: var(--text-muted); }
+
+  /* SCREENS */
+  .screen { display: none; padding: 16px 16px 100px; }
+  .screen.active { display: block; }
+
+  /* NAVBAR */
+  .navbar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 12px; cursor: pointer; color: var(--text-muted); font-size: 10px; gap: 3px; border: none; background: none; font-family: inherit; transition: color 0.15s; }
+  .nav-item.active { color: var(--blue); }
+  .nav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* CARDS */
+  .card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; margin-bottom: 12px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+
+  /* FORM */
+  .field-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
+  .field { width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; background: var(--bg); color: var(--text); margin-bottom: 12px; outline: none; transition: border-color 0.15s; }
+  .field:focus { border-color: var(--blue); background: #fff; }
+  .btn-primary { width: 100%; padding: 13px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm); font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.5; }
+  .btn-sm { padding: 7px 13px; font-size: 13px; border: 1px solid var(--border); border-radius: 20px; background: var(--card); color: var(--text); cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+  .btn-sm.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+  /* CAT PILLS */
+  .cat-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .cat-pill { padding: 7px 13px; border-radius: 20px; font-size: 13px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; font-family: inherit; }
+  .cat-pill.sel { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(55,138,221,0.2); }
+
+  /* TOTAL BADGE */
+  .total-badge { background: var(--blue-light); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .total-badge-label { font-size: 13px; color: #185FA5; font-weight: 500; }
+  .total-badge-value { font-size: 22px; font-weight: 700; color: #185FA5; }
+
+  /* ENTRIES */
+  .entry { display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 10px; }
+  .entry:last-child { border-bottom: none; }
+  .entry-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .entry-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .entry-note { font-size: 12px; color: var(--text-muted); font-style: italic; margin-top: 2px; }
+  .entry-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .entry-amount { font-size: 15px; font-weight: 600; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; border-radius: 4px; display: flex; align-items: center; transition: color 0.15s; }
+  .icon-btn:hover { color: var(--text); }
+  .icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-btn.danger:hover { color: var(--red); }
+
+  /* MONTH NAV */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-nav-label { font-size: 16px; font-weight: 600; }
+  .month-nav-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 14px; cursor: pointer; color: var(--text); font-family: inherit; }
+
+  /* SEGMENT */
+  .seg-group { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }
+  .seg-btn { flex: 1; padding: 9px; font-size: 13px; background: var(--card); color: var(--text-muted); border: none; cursor: pointer; font-family: inherit; font-weight: 500; transition: all 0.15s; }
+  .seg-btn.active { background: var(--blue); color: white; }
+
+  /* SETTINGS */
+  .setting-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-swatch { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+  .setting-name { flex: 1; font-size: 15px; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border-radius: var(--radius) var(--radius) 0 0; padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto; }
+  .modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .modal p { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; }
+  .modal-btns { display: flex; gap: 10px; margin-top: 4px; }
+  .btn-cancel { flex: 1; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; cursor: pointer; font-family: inherit; font-weight: 500; }
+  .btn-danger { flex: 1; padding: 12px; background: var(--red); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; cursor: pointer; font-family: inherit; font-weight: 600; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 11px 20px; border-radius: 20px; font-size: 14px; font-weight: 500; z-index: 300; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+  /* CHART */
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* REPORT */
+  .report-cat { margin-bottom: 20px; }
+  .report-cat-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 2px solid; margin-bottom: 4px; }
+  .report-entry-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .report-entry-row:last-child { border-bottom: none; }
+
+  /* FILTER CHIPS */
+  .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px; }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 14px; }
+
+  /* COLOR PICKER */
+  .color-options { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .color-opt { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color 0.15s; }
+  .color-opt.sel { border-color: var(--text); }
+
+  .emoji-field { font-size: 24px; text-align: center; width: 70px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo"><span class="logo-alb">ALB</span><span class="logo-udget">udget</span></div>
+  <span class="topbar-month" id="topbar-month"></span>
+</div>
+
+<!-- REGISTRER -->
+<div class="screen active" id="s-register">
+  <div class="card" style="margin-top:4px;">
+    <div class="field-label">Beløb (kr)</div>
+    <input class="field" type="number" inputmode="decimal" placeholder="0" id="reg-amount"/>
+    <div class="field-label">Kategori</div>
+    <div class="cat-pills" id="cat-picker"></div>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="reg-date"/>
+    <div class="field-label">Bemærkning (valgfri)</div>
+    <input class="field" type="text" placeholder="Fx IKEA – stol til Nora" id="reg-note"/>
+    <button class="btn-primary" id="reg-btn" onclick="registerKob()">Registrer køb</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Denne måned</div>
+    <div class="chart-wrap" style="height:160px;"><canvas id="bar-chart" role="img" aria-label="Forbrug per kategori denne måned"></canvas></div>
+    <div id="bar-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- OVERSIGT -->
+<div class="screen" id="s-oversigt">
+  <div style="margin-top:4px;">
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="changeMonth(-1)">‹ Forrige</button>
+      <span class="month-nav-label" id="ov-month-label"></span>
+      <button class="month-nav-btn" onclick="changeMonth(1)">Næste ›</button>
+    </div>
+    <div class="total-badge">
+      <span class="total-badge-label">Totalt brugt</span>
+      <span class="total-badge-value" id="ov-total">0 kr</span>
+    </div>
+    <div class="filter-chips" id="ov-filters"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <button class="btn-sm" onclick="showReport()">📄 Se rapport</button>
+    </div>
+    <div class="card" style="padding:16px;">
+      <div id="ov-entries"><div class="loading">Henter køb...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- OPSPARING -->
+<div class="screen" id="s-opsparing">
+  <div class="card" style="margin-top:4px;">
+    <div class="field-label">Nuværende balance (kr)</div>
+    <input class="field" type="number" inputmode="decimal" placeholder="Fx 42000" id="sav-amount"/>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="sav-date"/>
+    <button class="btn-primary" onclick="logSavings()">Log balance</button>
+  </div>
+  <div class="card">
+    <div class="seg-group">
+      <button class="seg-btn active" onclick="setSavPeriod(1,this)">1 måned</button>
+      <button class="seg-btn" onclick="setSavPeriod(6,this)">6 måneder</button>
+      <button class="seg-btn" onclick="setSavPeriod(12,this)">12 måneder</button>
+    </div>
+    <div class="chart-wrap" style="height:200px;"><canvas id="sav-chart" role="img" aria-label="Opsparingsgraf"></canvas></div>
+    <div id="sav-trend" style="font-size:13px;color:var(--text-muted);margin-top:10px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- INDSTILLINGER -->
+<div class="screen" id="s-indstillinger">
+  <div style="margin-top:4px;">
+    <div class="card-title" style="padding:0 0 8px;">Kategorier</div>
+    <div class="card" style="padding:0 16px;">
+      <div id="settings-cats"></div>
+    </div>
+    <button class="btn-sm" style="margin-top:12px;width:100%;padding:12px;border-radius:var(--radius-sm);" onclick="openAddCat()">+ Tilføj kategori</button>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <button class="nav-item active" onclick="showScreen('register',this)" id="nav-register">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M9 12h6" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity="0.15"/><path d="M8.5 9.5C9.2 8 10.5 7 12 7s2.8 1 3.5 2.5"/></svg>
+    <svg viewBox="0 0 24 24" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M3 7h4l2-4h6l2 4h4v13H3z"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 1 1 0 10A5 5 0 0 1 12 2zm0 12c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/></svg>
+    <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M12 12v4M10 14h4"/></svg>
+    Registrer
+  </button>
+  <button class="nav-item" onclick="showScreen('oversigt',this)" id="nav-oversigt">
+    <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+    Oversigt
+  </button>
+  <button class="nav-item" onclick="showScreen('opsparing',this)" id="nav-opsparing">
+    <svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+    Opsparing
+  </button>
+  <button class="nav-item" onclick="showScreen('indstillinger',this)" id="nav-indstillinger">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Indstillinger
+  </button>
+</nav>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal">
+    <h3>Slet køb?</h3>
+    <p>Dette kan ikke fortrydes.</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-delete')">Annuller</button>
+      <button class="btn-danger" onclick="confirmDelete()">Slet</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal">
+    <h3>Rediger køb</h3>
+    <div class="field-label">Beløb (kr)</div>
+    <input class="field" type="number" id="edit-amount"/>
+    <div class="field-label">Bemærkning</div>
+    <input class="field" type="text" id="edit-note"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-edit')">Annuller</button>
+      <button class="btn-primary" style="flex:1;" onclick="confirmEdit()">Gem ændringer</button>
+    </div>
+  </div>
+</div>
+
+<!-- DRILL MODAL -->
+<div class="modal-overlay" id="modal-drill">
+  <div class="modal">
+    <h3 id="drill-title"></h3>
+    <div id="drill-entries" style="margin-top:12px;max-height:50vh;overflow-y:auto;"></div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-cancel" style="flex:1;" onclick="closeModal('modal-drill')">Luk</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="modal-overlay" id="modal-report">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="report-title" style="margin:0;"></h3>
+      <button class="icon-btn" onclick="closeModal('modal-report')" aria-label="Luk">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="report-content"></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT CAT MODAL -->
+<div class="modal-overlay" id="modal-cat">
+  <div class="modal">
+    <h3 id="cat-modal-title">Tilføj kategori</h3>
+    <div style="display:flex;gap:12px;margin-bottom:12px;">
+      <div style="flex:0 0 auto;">
+        <div class="field-label">Emoji</div>
+        <input class="field emoji-field" type="text" id="cat-emoji" maxlength="2" placeholder="🛒"/>
+      </div>
+      <div style="flex:1;">
+        <div class="field-label">Navn</div>
+        <input class="field" type="text" id="cat-name" placeholder="Fx Dagligvarer"/>
+      </div>
+    </div>
+    <div class="field-label">Farve</div>
+    <div class="color-options" id="color-opts"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-cat')">Annuller</button>
+      <button class="btn-primary" style="flex:1;" onclick="saveCat()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBT2JTqdh6Awc4HEgP9crCShCgX5PzyTGI",
+  authDomain: "albudget-52a42.firebaseapp.com",
+  projectId: "albudget-52a42",
+  storageBucket: "albudget-52a42.firebasestorage.app",
+  messagingSenderId: "981970257291",
+  appId: "1:981970257291:web:04b740f605453dc6649b8e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const COLORS = ['#1D9E75','#D85A30','#378ADD','#D4537E','#BA7517','#534AB7','#0F6E56','#993C1D','#185FA5','#72243E'];
+
+let cats = [];
+let entries = [];
+let savings = [];
+let savPeriod = 6;
+let ovMonth = new Date();
+ovMonth.setDate(1);
+let ovFilterCat = null;
+let pendingDeleteId = null;
+let pendingEditId = null;
+let editingCatId = null;
+let barChartInst = null;
+let savChartInst = null;
+
+function today() { return new Date().toISOString().split('T')[0]; }
+function fmt(n) { return Math.round(n).toLocaleString('da-DK'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+
+function getCat(id) { return cats.find(c => c.id === id) || { name: 'Ukendt', color: '#888', emoji: '?' }; }
+
+function monthLabel(d) {
+  const s = d.toLocaleDateString('da-DK', { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function showScreen(name, el) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  if (name === 'oversigt') renderOversigt();
+  if (name === 'opsparing') renderSavChart();
+  if (name === 'indstillinger') renderSettings();
+  if (name === 'register') { renderCatPicker(); renderBarChart(); }
+}
+
+// ---- FIREBASE LISTENERS ----
+function startListeners() {
+  db.collection('categories').orderBy('createdAt').onSnapshot(snap => {
+    cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderCatPicker();
+    renderBarChart();
+    renderSettings();
+  });
+
+  db.collection('entries').orderBy('date', 'desc').onSnapshot(snap => {
+    entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderBarChart();
+    renderOversigt();
+  });
+
+  db.collection('savings').orderBy('date').onSnapshot(snap => {
+    savings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderSavChart();
+  });
+}
+
+// ---- REGISTER ----
+function renderCatPicker() {
+  const el = document.getElementById('cat-picker');
+  el.innerHTML = '';
+  cats.forEach(c => {
+    const p = document.createElement('button');
+    p.className = 'cat-pill';
+    p.style.background = c.color + '22';
+    p.style.color = c.color;
+    p.textContent = c.emoji + ' ' + c.name;
+    p.dataset.id = c.id;
+    p.onclick = () => {
+      document.querySelectorAll('.cat-pill').forEach(x => x.classList.remove('sel'));
+      p.classList.add('sel');
+    };
+    el.appendChild(p);
+  });
+}
+
+async function registerKob() {
+  const amt = parseFloat(document.getElementById('reg-amount').value);
+  const note = document.getElementById('reg-note').value.trim();
+  const date = document.getElementById('reg-date').value || today();
+  const sel = document.querySelector('.cat-pill.sel');
+  if (!amt || amt <= 0) { showToast('Skriv et beløb'); return; }
+  if (!sel) { showToast('Vælg en kategori'); return; }
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true; btn.textContent = 'Gemmer...';
+  await db.collection('entries').add({ amount: amt, catId: sel.dataset.id, date, note, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  document.getElementById('reg-amount').value = '';
+  document.getElementById('reg-note').value = '';
+  document.querySelectorAll('.cat-pill').forEach(x => x.classList.remove('sel'));
+  btn.disabled = false; btn.textContent = 'Registrer køb';
+  showToast('Køb registreret ✓');
+}
+
+// ---- BAR CHART ----
+function renderBarChart() {
+  if (!cats.length) return;
+  const now = new Date(); now.setDate(1);
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const mo = now.getMonth(), yr = now.getFullYear();
+  const pmo = prev.getMonth(), pyr = prev.getFullYear();
+
+  const curTotals = {}, prevTotals = {};
+  cats.forEach(c => { curTotals[c.id] = 0; prevTotals[c.id] = 0; });
+  entries.forEach(e => {
+    const d = new Date(e.date);
+    if (d.getMonth() === mo && d.getFullYear() === yr && curTotals[e.catId] !== undefined) curTotals[e.catId] += e.amount;
+    if (d.getMonth() === pmo && d.getFullYear() === pyr && prevTotals[e.catId] !== undefined) prevTotals[e.catId] += e.amount;
+  });
+
+  const now2 = new Date();
+  const todayDay = now2.getDate();
+  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+  const daysInPrev = new Date(pyr, pmo + 1, 0).getDate();
+  const prevProrated = {};
+  cats.forEach(c => { prevProrated[c.id] = Math.round(prevTotals[c.id] * (todayDay / daysInPrev)); });
+
+  const labels = cats.map(c => c.emoji);
+  const curData = cats.map(c => curTotals[c.id]);
+  const ghostData = cats.map(c => prevProrated[c.id]);
+
+  const topbarMonth = new Date().toLocaleDateString('da-DK', { month: 'long' });
+  document.getElementById('topbar-month').textContent = topbarMonth.charAt(0).toUpperCase() + topbarMonth.slice(1);
+
+  if (barChartInst) { barChartInst.destroy(); barChartInst = null; }
+  barChartInst = new Chart(document.getElementById('bar-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Denne måned', data: curData, backgroundColor: cats.map(c => c.color), borderRadius: 5, order: 1 },
+        { label: 'Sidste måned (MTD)', data: ghostData, backgroundColor: 'rgba(107,114,128,0.2)', borderColor: 'rgba(107,114,128,0.4)', borderWidth: 1, borderRadius: 5, order: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
+      scales: {
+        x: { ticks: { font: { size: 18 } }, grid: { display: false } },
+        y: { ticks: { callback: v => fmt(v), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      },
+      onClick: (evt, els) => { if (els.length) drillDown(cats[els[0].index]); }
+    }
+  });
+
+  const legend = document.getElementById('bar-legend');
+  legend.innerHTML = '';
+  cats.forEach(c => {
+    const s = document.createElement('span');
+    s.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);';
+    s.innerHTML = `<span style="width:8px;height:8px;border-radius:2px;background:${c.color};display:inline-block;"></span>${c.emoji} ${c.name}`;
+    legend.appendChild(s);
+  });
+}
+
+function drillDown(cat) {
+  const now = new Date(); const mo = now.getMonth(), yr = now.getFullYear();
+  const rel = entries.filter(e => e.catId === cat.id && (() => { const d = new Date(e.date); return d.getMonth() === mo && d.getFullYear() === yr; })());
+  document.getElementById('drill-title').textContent = cat.emoji + ' ' + cat.name;
+  const el = document.getElementById('drill-entries');
+  if (!rel.length) { el.innerHTML = '<div class="empty">Ingen køb denne måned</div>'; }
+  else {
+    el.innerHTML = '';
+    rel.forEach(e => {
+      const d = new Date(e.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+      const row = document.createElement('div');
+      row.className = 'entry';
+      row.innerHTML = `<div class="entry-dot" style="background:${cat.color}"></div><div class="entry-info"><div class="entry-title">${d}</div>${e.note ? `<div class="entry-note">${e.note}</div>` : ''}</div><div class="entry-amount">${fmt(e.amount)} kr</div>`;
+      el.appendChild(row);
+    });
+  }
+  openModal('modal-drill');
+}
+
+// ---- OVERSIGT ----
+function changeMonth(dir) {
+  ovMonth = new Date(ovMonth.getFullYear(), ovMonth.getMonth() + dir, 1);
+  ovFilterCat = null;
+  renderOversigt();
+}
+
+function renderOversigt() {
+  const mo = ovMonth.getMonth(), yr = ovMonth.getFullYear();
+  document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
+  const rel = entries.filter(e => { const d = new Date(e.date); return d.getMonth() === mo && d.getFullYear() === yr; });
+  const shown = ovFilterCat ? rel.filter(e => e.catId === ovFilterCat) : rel;
+  document.getElementById('ov-total').textContent = fmt(shown.reduce((s, e) => s + e.amount, 0)) + ' kr';
+
+  const fc = document.getElementById('ov-filters');
+  fc.innerHTML = '';
+  const all = document.createElement('button');
+  all.className = 'btn-sm' + (ovFilterCat === null ? ' active' : '');
+  all.textContent = 'Alle'; all.onclick = () => { ovFilterCat = null; renderOversigt(); };
+  fc.appendChild(all);
+  cats.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'btn-sm' + (ovFilterCat === c.id ? ' active' : '');
+    b.textContent = c.emoji + ' ' + c.name;
+    b.onclick = () => { ovFilterCat = c.id; renderOversigt(); };
+    fc.appendChild(b);
+  });
+
+  const el = document.getElementById('ov-entries');
+  if (!shown.length) { el.innerHTML = '<div class="empty">Ingen køb denne måned</div>'; return; }
+  el.innerHTML = '';
+  shown.forEach(e => {
+    const c = getCat(e.catId);
+    const d = new Date(e.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+    const row = document.createElement('div'); row.className = 'entry';
+    row.innerHTML = `
+      <div class="entry-dot" style="background:${c.color}"></div>
+      <div class="entry-info">
+        <div class="entry-title">${c.emoji} ${c.name}</div>
+        <div class="entry-sub">${d}</div>
+        ${e.note ? `<div class="entry-note">${e.note}</div>` : ''}
+      </div>
+      <div class="entry-right">
+        <div class="entry-amount">${fmt(e.amount)} kr</div>
+        <button class="icon-btn" onclick="editEntry('${e.id}')" aria-label="Rediger">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn danger" onclick="deleteEntry('${e.id}')" aria-label="Slet">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>`;
+    el.appendChild(row);
+  });
+}
+
+function deleteEntry(id) { pendingDeleteId = id; openModal('modal-delete'); }
+async function confirmDelete() {
+  if (pendingDeleteId) await db.collection('entries').doc(pendingDeleteId).delete();
+  closeModal('modal-delete'); pendingDeleteId = null;
+  showToast('Køb slettet');
+}
+function editEntry(id) {
+  const e = entries.find(x => x.id === id); if (!e) return;
+  pendingEditId = id;
+  document.getElementById('edit-amount').value = e.amount;
+  document.getElementById('edit-note').value = e.note || '';
+  openModal('modal-edit');
+}
+async function confirmEdit() {
+  const amt = parseFloat(document.getElementById('edit-amount').value);
+  const note = document.getElementById('edit-note').value.trim();
+  if (!amt || amt <= 0) { showToast('Ugyldigt beløb'); return; }
+  await db.collection('entries').doc(pendingEditId).update({ amount: amt, note });
+  closeModal('modal-edit'); pendingEditId = null;
+  showToast('Køb opdateret ✓');
+}
+
+function showReport() {
+  const mo = ovMonth.getMonth(), yr = ovMonth.getFullYear();
+  document.getElementById('report-title').textContent = 'Rapport – ' + monthLabel(ovMonth);
+  const rel = entries.filter(e => { const d = new Date(e.date); return d.getMonth() === mo && d.getFullYear() === yr; });
+  const el = document.getElementById('report-content');
+  el.innerHTML = '';
+  const grand = rel.reduce((s, e) => s + e.amount, 0);
+  el.innerHTML += `<div style="display:flex;justify-content:space-between;padding:10px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px;font-weight:600;"><span>Total</span><span>${fmt(grand)} kr</span></div>`;
+  cats.forEach(c => {
+    const ce = rel.filter(e => e.catId === c.id);
+    if (!ce.length) return;
+    const tot = ce.reduce((s, e) => s + e.amount, 0);
+    const sec = document.createElement('div'); sec.className = 'report-cat';
+    let html = `<div class="report-cat-header" style="border-color:${c.color};"><span style="font-weight:600;">${c.emoji} ${c.name}</span><span style="font-weight:600;color:${c.color};">${fmt(tot)} kr</span></div>`;
+    ce.forEach(e => {
+      const d = new Date(e.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+      html += `<div class="report-entry-row"><div><div>${d}</div>${e.note ? `<div style="font-size:11px;color:var(--text-muted);font-style:italic;">${e.note}</div>` : ''}</div><div>${fmt(e.amount)} kr</div></div>`;
+    });
+    sec.innerHTML = html; el.appendChild(sec);
+  });
+  openModal('modal-report');
+}
+
+// ---- OPSPARING ----
+async function logSavings() {
+  const amt = parseFloat(document.getElementById('sav-amount').value);
+  const date = document.getElementById('sav-date').value || today();
+  if (!amt || amt <= 0) { showToast('Skriv et beløb'); return; }
+  await db.collection('savings').add({ amount: amt, date, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  document.getElementById('sav-amount').value = '';
+  showToast('Balance logget ✓');
+}
+
+function setSavPeriod(p, btn) {
+  savPeriod = p;
+  document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSavChart();
+}
+
+function renderSavChart() {
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth() - savPeriod);
+  const data = savings.filter(s => new Date(s.date) >= cutoff).sort((a, b) => a.date.localeCompare(b.date));
+  if (savChartInst) { savChartInst.destroy(); savChartInst = null; }
+  if (data.length < 2) { document.getElementById('sav-trend').textContent = 'Ikke nok data endnu'; return; }
+
+  const labels = data.map(s => new Date(s.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' }));
+  const vals = data.map(s => s.amount);
+  const n = vals.length;
+  const xArr = vals.map((_, i) => i);
+  const xMean = xArr.reduce((a, b) => a + b, 0) / n;
+  const yMean = vals.reduce((a, b) => a + b, 0) / n;
+  const slope = xArr.reduce((s, x, i) => s + (x - xMean) * (vals[i] - yMean), 0) / (xArr.reduce((s, x) => s + (x - xMean) ** 2, 0) || 1);
+  const intercept = yMean - slope * xMean;
+  const trendVals = xArr.map(x => Math.round(slope * x + intercept));
+  const rising = slope > 0;
+  const trendColor = rising ? '#1D9E75' : '#E24B4A';
+  document.getElementById('sav-trend').textContent = rising ? '📈 Opsparingen er opadgående' : '📉 Opsparingen er faldende';
+
+  savChartInst = new Chart(document.getElementById('sav-chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Balance', data: vals, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.07)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#378ADD', pointBorderColor: '#fff', pointBorderWidth: 2, order: 1 },
+        { label: 'Tendens', data: trendVals, borderColor: trendColor, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true }, grid: { display: false } },
+        y: { ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+// ---- INDSTILLINGER ----
+function renderSettings() {
+  const el = document.getElementById('settings-cats'); el.innerHTML = '';
+  if (!cats.length) { el.innerHTML = '<div class="empty">Ingen kategorier endnu</div>'; return; }
+  cats.forEach(c => {
+    const row = document.createElement('div'); row.className = 'setting-row';
+    row.innerHTML = `
+      <span style="font-size:20px;">${c.emoji}</span>
+      <div class="setting-swatch" style="background:${c.color}"></div>
+      <span class="setting-name">${c.name}</span>
+      <button class="icon-btn" onclick="openEditCat('${c.id}')" aria-label="Rediger">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="icon-btn danger" onclick="deleteCat('${c.id}')" aria-label="Slet">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>`;
+    el.appendChild(row);
+  });
+}
+
+function renderColorOpts(selectedColor) {
+  const el = document.getElementById('color-opts'); el.innerHTML = '';
+  COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'color-opt' + (c === selectedColor ? ' sel' : '');
+    d.style.background = c;
+    d.onclick = () => { document.querySelectorAll('.color-opt').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); };
+    el.appendChild(d);
+  });
+}
+
+function openAddCat() {
+  editingCatId = null;
+  document.getElementById('cat-modal-title').textContent = 'Tilføj kategori';
+  document.getElementById('cat-emoji').value = '';
+  document.getElementById('cat-name').value = '';
+  renderColorOpts(COLORS[0]);
+  openModal('modal-cat');
+}
+
+function openEditCat(id) {
+  const c = getCat(id); editingCatId = id;
+  document.getElementById('cat-modal-title').textContent = 'Rediger kategori';
+  document.getElementById('cat-emoji').value = c.emoji;
+  document.getElementById('cat-name').value = c.name;
+  renderColorOpts(c.color);
+  openModal('modal-cat');
+}
+
+async function saveCat() {
+  const emoji = document.getElementById('cat-emoji').value.trim() || '📦';
+  const name = document.getElementById('cat-name').value.trim();
+  const selColor = document.querySelector('.color-opt.sel');
+  const color = selColor ? selColor.style.background : COLORS[0];
+  if (!name) { showToast('Skriv et navn'); return; }
+  if (editingCatId) {
+    await db.collection('categories').doc(editingCatId).update({ emoji, name, color });
+    showToast('Kategori opdateret ✓');
+  } else {
+    await db.collection('categories').add({ emoji, name, color, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    showToast('Kategori tilføjet ✓');
+  }
+  closeModal('modal-cat');
+}
+
+async function deleteCat(id) {
+  if (!confirm('Slet kategori? Den vil stadig vises på tidligere køb.')) return;
+  await db.collection('categories').doc(id).delete();
+  showToast('Kategori slettet');
+}
+
+// ---- INIT ----
+document.getElementById('reg-date').value = today();
+document.getElementById('sav-date').value = today();
+document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
+startListeners();
+</script>
+</body>
+</html>
