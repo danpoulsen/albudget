@@ -512,9 +512,6 @@ function renderBarChart() {
   const curData = cats.map(c => curTotals[c.id]);
   const ghostData = cats.map(c => prevCompareTotals[c.id]);
 
-  const topbarMonth = new Date().toLocaleDateString('da-DK', { month: 'long' });
-  document.getElementById('topbar-month').textContent = topbarMonth.charAt(0).toUpperCase() + topbarMonth.slice(1);
-
   const monthTotal = curData.reduce((s, v) => s + v, 0);
   const totalEl = document.getElementById('bar-total');
   if (totalEl) totalEl.textContent = fmt(monthTotal) + ' kr';
