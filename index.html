@@ -686,15 +686,7 @@ function renderYearChart() {
         x: { ticks: { font: { size: 10 } }, grid: { display: false } },
         y: { ticks: { callback: v => fmt(v), font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
       },
-      onClick: (evt, els) => {
-        if (!els.length) return;
-        const mo = els[0].index;
-        ovMonth = new Date(yr, mo, 1);
-        ovFilterCat = null;
-        yearChartVisible = false;
-        document.getElementById('year-chart-wrap').style.display = 'none';
-        renderOversigt();
-      }
+      onClick: () => {}
     }
   });
 }
