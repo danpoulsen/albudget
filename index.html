@@ -166,7 +166,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">Denne måned</div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Denne måned</span><span id="bar-total" style="font-size:15px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0;"></span></div>
     <div class="chart-wrap" style="height:160px;"><canvas id="bar-chart" role="img" aria-label="Forbrug per kategori denne måned"></canvas></div>
     <div id="bar-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
   </div>
@@ -211,6 +211,10 @@
     </div>
     <div class="chart-wrap" style="height:200px;"><canvas id="sav-chart" role="img" aria-label="Opsparingsgraf"></canvas></div>
     <div id="sav-trend" style="font-size:13px;color:var(--text-muted);margin-top:10px;text-align:center;"></div>
+  </div>
+  <div class="card" style="padding:0 16px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding:14px 0 8px;">Registrerede balancer</div>
+    <div id="sav-entries"></div>
   </div>
 </div>
 
@@ -266,6 +270,8 @@
     <h3>Rediger køb</h3>
     <div class="field-label">Beløb (kr)</div>
     <input class="field" type="number" id="edit-amount"/>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="edit-date"/>
     <div class="field-label">Bemærkning</div>
     <input class="field" type="text" id="edit-note"/>
     <div class="modal-btns">
@@ -299,6 +305,22 @@
   </div>
 </div>
 
+<!-- EDIT SAVINGS MODAL -->
+<div class="modal-overlay" id="modal-edit-sav">
+  <div class="modal">
+    <h3>Rediger balance</h3>
+    <div class="field-label">Balance (kr)</div>
+    <input class="field" type="number" id="edit-sav-amount"/>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="edit-sav-date"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-edit-sav')">Annuller</button>
+      <button class="btn-danger" onclick="confirmDeleteSav()" style="flex:0 0 auto;padding:12px;">Slet</button>
+      <button class="btn-primary" style="flex:1;" onclick="confirmEditSav()">Gem</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD/EDIT CAT MODAL -->
 <div class="modal-overlay" id="modal-cat">
   <div class="modal">
@@ -328,7 +350,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const COLORS = ['#1D9E75','#D85A30','#378ADD','#D4537E','#BA7517','#534AB7','#0F6E56','#993C1D','#185FA5','#72243E'];
+const COLORS = ['#1D9E75','#D85A30','#378ADD','#D4537E','#BA7517','#534AB7','#0F6E56','#993C1D','#185FA5','#72243E','#E8963A','#3AACB8','#7DBD3A','#C44BAD','#5B7FD4','#D4A017','#8B4513','#2E8B57','#DC143C','#4682B4','#FF6B6B','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD'];
 
 let cats = [];
 let entries = [];
@@ -389,6 +411,7 @@ function startListeners() {
   db.collection('savings').orderBy('date').onSnapshot(snap => {
     savings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderSavChart();
+    renderSavEntries();
   });
 }
 
@@ -458,6 +481,9 @@ function renderBarChart() {
   const topbarMonth = new Date().toLocaleDateString('da-DK', { month: 'long' });
   document.getElementById('topbar-month').textContent = topbarMonth.charAt(0).toUpperCase() + topbarMonth.slice(1);
 
+  const monthTotal = curData.reduce((s, v) => s + v, 0);
+  const totalEl = document.getElementById('bar-total');
+  if (totalEl) totalEl.textContent = fmt(monthTotal) + ' kr';
   if (barChartInst) { barChartInst.destroy(); barChartInst = null; }
   barChartInst = new Chart(document.getElementById('bar-chart'), {
     type: 'bar',
@@ -472,7 +498,7 @@ function renderBarChart() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
       scales: {
-        x: { ticks: { font: { size: 18 } }, grid: { display: false } },
+        x: { ticks: { font: { size: 13 } }, grid: { display: false } },
         y: { ticks: { callback: v => fmt(v), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
       },
       onClick: (evt, els) => { if (els.length) drillDown(cats[els[0].index]); }
@@ -484,7 +510,7 @@ function renderBarChart() {
   cats.forEach(c => {
     const s = document.createElement('span');
     s.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);';
-    s.innerHTML = `<span style="width:8px;height:8px;border-radius:2px;background:${c.color};display:inline-block;"></span>${c.emoji} ${c.name}`;
+    s.innerHTML = `<span style="width:8px;height:8px;border-radius:2px;background:${c.color};display:inline-block;"></span>${c.name}`;
     legend.appendChild(s);
   });
 }
@@ -573,14 +599,16 @@ function editEntry(id) {
   const e = entries.find(x => x.id === id); if (!e) return;
   pendingEditId = id;
   document.getElementById('edit-amount').value = e.amount;
+  document.getElementById('edit-date').value = e.date;
   document.getElementById('edit-note').value = e.note || '';
   openModal('modal-edit');
 }
 async function confirmEdit() {
   const amt = parseFloat(document.getElementById('edit-amount').value);
+  const date = document.getElementById('edit-date').value;
   const note = document.getElementById('edit-note').value.trim();
   if (!amt || amt <= 0) { showToast('Ugyldigt beløb'); return; }
-  await db.collection('entries').doc(pendingEditId).update({ amount: amt, note });
+  await db.collection('entries').doc(pendingEditId).update({ amount: amt, date, note });
   closeModal('modal-edit'); pendingEditId = null;
   showToast('Køb opdateret ✓');
 }
@@ -640,8 +668,15 @@ function renderSavChart() {
   const yMean = vals.reduce((a, b) => a + b, 0) / n;
   const slope = xArr.reduce((s, x, i) => s + (x - xMean) * (vals[i] - yMean), 0) / (xArr.reduce((s, x) => s + (x - xMean) ** 2, 0) || 1);
   const intercept = yMean - slope * xMean;
-  const trendVals = xArr.map(x => Math.round(slope * x + intercept));
-  const rising = slope > 0;
+  // Anchor trendline to first and last actual data points
+  const trendStart = vals[0];
+  const trendEnd = Math.round(slope * (n - 1) + intercept);
+  const trendVals = xArr.map((x, i) => {
+    if (i === 0) return trendStart;
+    if (i === n - 1) return trendEnd;
+    return Math.round(trendStart + (trendEnd - trendStart) * (i / (n - 1)));
+  });
+  const rising = trendEnd > trendStart;
   const trendColor = rising ? '#1D9E75' : '#E24B4A';
   document.getElementById('sav-trend').textContent = rising ? '📈 Opsparingen er opadgående' : '📉 Opsparingen er faldende';
 
@@ -659,10 +694,59 @@ function renderSavChart() {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
       scales: {
         x: { ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true }, grid: { display: false } },
-        y: { ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+        y: { min: 0, max: Math.max(...vals) + 2000, ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
       }
     }
   });
+}
+
+// ---- OPSPARING EDIT ----
+let pendingEditSavId = null;
+
+function renderSavEntries() {
+  const el = document.getElementById('sav-entries');
+  if (!el) return;
+  const sorted = [...savings].sort((a,b) => b.date.localeCompare(a.date));
+  if (!sorted.length) { el.innerHTML = '<div class="empty">Ingen balancer logget endnu</div>'; return; }
+  el.innerHTML = '';
+  sorted.forEach(s => {
+    const d = new Date(s.date).toLocaleDateString('da-DK', {day:'numeric', month:'short', year:'numeric'});
+    const row = document.createElement('div');
+    row.className = 'entry';
+    row.innerHTML = `
+      <div class="entry-info">
+        <div class="entry-title">${d}</div>
+      </div>
+      <div class="entry-right">
+        <div class="entry-amount">${fmt(s.amount)} kr</div>
+        <button class="icon-btn" onclick="editSav('${s.id}')">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>`;
+    el.appendChild(row);
+  });
+}
+
+function editSav(id) {
+  const s = savings.find(x => x.id === id); if (!s) return;
+  pendingEditSavId = id;
+  document.getElementById('edit-sav-amount').value = s.amount;
+  document.getElementById('edit-sav-date').value = s.date;
+  openModal('modal-edit-sav');
+}
+async function confirmEditSav() {
+  const amt = parseFloat(document.getElementById('edit-sav-amount').value);
+  const date = document.getElementById('edit-sav-date').value;
+  if (!amt || amt <= 0) { showToast('Ugyldigt beløb'); return; }
+  await db.collection('savings').doc(pendingEditSavId).update({ amount: amt, date });
+  closeModal('modal-edit-sav'); pendingEditSavId = null;
+  showToast('Balance opdateret ✓');
+}
+async function confirmDeleteSav() {
+  if (!confirm('Slet denne balance?')) return;
+  await db.collection('savings').doc(pendingEditSavId).delete();
+  closeModal('modal-edit-sav'); pendingEditSavId = null;
+  showToast('Balance slettet');
 }
 
 // ---- INDSTILLINGER ----
