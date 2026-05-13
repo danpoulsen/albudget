@@ -529,7 +529,7 @@ function renderBarChart() {
         x: { ticks: { font: { size: 13 } }, grid: { display: false } },
         y: { ticks: { callback: v => fmt(v), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
       },
-      onClick: (evt, els) => { if (els.length) drillDown(cats[els[0].index]); }
+      onClick: () => {}
     }
   });
 
@@ -641,6 +641,8 @@ async function confirmEdit() {
   showToast('Køb opdateret ✓');
 }
 
+let reportChartInst = null;
+
 function showReport() {
   const mo = ovMonth.getMonth(), yr = ovMonth.getFullYear();
   document.getElementById('report-title').textContent = 'Rapport – ' + monthLabel(ovMonth);
@@ -648,7 +650,17 @@ function showReport() {
   const el = document.getElementById('report-content');
   el.innerHTML = '';
   const grand = rel.reduce((s, e) => s + e.amount, 0);
+
+  // Total
   el.innerHTML += `<div style="display:flex;justify-content:space-between;padding:10px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px;font-weight:600;"><span>Total</span><span>${fmt(grand)} kr</span></div>`;
+
+  // Chart
+  const chartWrap = document.createElement('div');
+  chartWrap.style.cssText = 'margin-bottom:20px;';
+  chartWrap.innerHTML = '<canvas id="report-chart" style="width:100%;height:180px;" role="img" aria-label="Rapport graf"></canvas>';
+  el.appendChild(chartWrap);
+
+  // Category list
   cats.forEach(c => {
     const ce = rel.filter(e => e.catId === c.id);
     if (!ce.length) return;
@@ -661,7 +673,32 @@ function showReport() {
     });
     sec.innerHTML = html; el.appendChild(sec);
   });
+
   openModal('modal-report');
+
+  // Draw chart after modal is open so canvas has dimensions
+  setTimeout(() => {
+    if (reportChartInst) { reportChartInst.destroy(); reportChartInst = null; }
+    const totals = {};
+    cats.forEach(c => { totals[c.id] = 0; });
+    rel.forEach(e => { if (totals[e.catId] !== undefined) totals[e.catId] += e.amount; });
+    const activeCats = cats.filter(c => totals[c.id] > 0);
+    reportChartInst = new Chart(document.getElementById('report-chart'), {
+      type: 'bar',
+      data: {
+        labels: activeCats.map(c => c.emoji + ' ' + c.name),
+        datasets: [{ data: activeCats.map(c => totals[c.id]), backgroundColor: activeCats.map(c => c.color), borderRadius: 5 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) + ' kr' } } },
+        scales: {
+          x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+        }
+      }
+    });
+  }, 100);
 }
 
 // ---- OPSPARING ----
