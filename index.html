@@ -166,7 +166,14 @@
   </div>
 
   <div class="card">
-    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Denne måned</span><span id="bar-total" style="font-size:15px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0;"></span></div>
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span>Denne måned</span>
+      <span id="bar-total" style="font-size:15px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0;"></span>
+    </div>
+    <div class="seg-group" style="margin-bottom:12px;">
+      <button class="seg-btn active" id="toggle-mtd" onclick="setBarMode('mtd',this)">Måned til dato</button>
+      <button class="seg-btn" id="toggle-full" onclick="setBarMode('full',this)">Hele måneden</button>
+    </div>
     <div class="chart-wrap" style="height:160px;"><canvas id="bar-chart" role="img" aria-label="Forbrug per kategori denne måned"></canvas></div>
     <div id="bar-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
   </div>
@@ -356,6 +363,14 @@ let cats = [];
 let entries = [];
 let savings = [];
 let savPeriod = 6;
+let barMode = 'mtd';
+
+function setBarMode(mode, btn) {
+  barMode = mode;
+  document.querySelectorAll('#toggle-mtd, #toggle-full').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBarChart();
+}
 let ovMonth = new Date();
 ovMonth.setDate(1);
 let ovFilterCat = null;
@@ -469,14 +484,27 @@ function renderBarChart() {
 
   const now2 = new Date();
   const todayDay = now2.getDate();
-  const daysInMonth = new Date(yr, mo + 1, 0).getDate();
   const daysInPrev = new Date(pyr, pmo + 1, 0).getDate();
-  const prevProrated = {};
-  cats.forEach(c => { prevProrated[c.id] = Math.round(prevTotals[c.id] * (todayDay / daysInPrev)); });
+
+  // MTD: current month up to today vs last month up to same day
+  // Full: current month total vs last month total
+  const prevCompareTotals = {};
+  if (barMode === 'mtd') {
+    // Filter last month entries up to same day of month
+    cats.forEach(c => { prevCompareTotals[c.id] = 0; });
+    entries.forEach(e => {
+      const d = new Date(e.date);
+      if (d.getMonth() === pmo && d.getFullYear() === pyr && d.getDate() <= todayDay && prevCompareTotals[e.catId] !== undefined) {
+        prevCompareTotals[e.catId] += e.amount;
+      }
+    });
+  } else {
+    cats.forEach(c => { prevCompareTotals[c.id] = prevTotals[c.id]; });
+  }
 
   const labels = cats.map(c => c.emoji);
   const curData = cats.map(c => curTotals[c.id]);
-  const ghostData = cats.map(c => prevProrated[c.id]);
+  const ghostData = cats.map(c => prevCompareTotals[c.id]);
 
   const topbarMonth = new Date().toLocaleDateString('da-DK', { month: 'long' });
   document.getElementById('topbar-month').textContent = topbarMonth.charAt(0).toUpperCase() + topbarMonth.slice(1);
@@ -491,7 +519,7 @@ function renderBarChart() {
       labels,
       datasets: [
         { label: 'Denne måned', data: curData, backgroundColor: cats.map(c => c.color), borderRadius: 5, order: 1 },
-        { label: 'Sidste måned (MTD)', data: ghostData, backgroundColor: 'rgba(107,114,128,0.2)', borderColor: 'rgba(107,114,128,0.4)', borderWidth: 1, borderRadius: 5, order: 2 }
+        { label: barMode === 'mtd' ? 'Sidste måned (MTD)' : 'Sidste måned (total)', data: ghostData, backgroundColor: 'rgba(107,114,128,0.2)', borderColor: 'rgba(107,114,128,0.4)', borderWidth: 1, borderRadius: 5, order: 2 }
       ]
     },
     options: {
@@ -694,7 +722,7 @@ function renderSavChart() {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
       scales: {
         x: { ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true }, grid: { display: false } },
-        y: { min: 0, max: Math.max(...vals) + 2000, ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+        y: { min: Math.max(0, Math.min(...vals) - 10000), max: Math.max(...vals) + 10000, ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
       }
     }
   });
@@ -804,13 +832,26 @@ function renderEmojiPicker(sel) {
   });
 }
 
+async function initCatOrder() {
+  // Set order field on any cats that don't have one yet
+  const batch = db.batch();
+  let changed = false;
+  cats.forEach((c, i) => {
+    if (c.order === undefined) {
+      batch.update(db.collection('categories').doc(c.id), { order: i });
+      changed = true;
+    }
+  });
+  if (changed) await batch.commit();
+}
+
 async function moveCat(id, dir) {
+  await initCatOrder();
   const i = cats.findIndex(c => c.id === id);
   const j = i + dir;
   if (j < 0 || j >= cats.length) return;
-  // Swap order values
-  const orderA = cats[i].order !== undefined ? cats[i].order : i;
-  const orderB = cats[j].order !== undefined ? cats[j].order : j;
+  const orderA = i;
+  const orderB = j;
   const batch = db.batch();
   batch.update(db.collection('categories').doc(cats[i].id), { order: orderB });
   batch.update(db.collection('categories').doc(cats[j].id), { order: orderA });
