@@ -47,7 +47,7 @@
 
   /* FORM */
   .field-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
-  .field { width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; background: var(--bg); color: var(--text); margin-bottom: 12px; outline: none; transition: border-color 0.15s; }
+  .field { width: 100%; max-width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; background: var(--bg); color: var(--text); margin-bottom: 12px; outline: none; transition: border-color 0.15s; box-sizing: border-box; }
   .field:focus { border-color: var(--blue); background: #fff; }
   .btn-primary { width: 100%; padding: 13px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm); font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
   .btn-primary:active { opacity: 0.85; }
@@ -152,7 +152,7 @@
     <div class="field-label">Kategori</div>
     <div class="cat-pills" id="cat-picker"></div>
     <div class="field-label">Dato</div>
-    <input class="field" type="date" id="reg-date"/>
+    <input class="field" type="date" id="reg-date" style="width:100%;max-width:100%;"/>
     <div class="field-label">Bemærkning (valgfri)</div>
     <input class="field" type="text" placeholder="Fx IKEA – stol til Nora" id="reg-note"/>
     <button class="btn-primary" id="reg-btn" onclick="registerKob()">Registrer køb</button>
