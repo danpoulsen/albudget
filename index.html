@@ -395,8 +395,8 @@ function showScreen(name, el) {
 
 // ---- FIREBASE LISTENERS ----
 function startListeners() {
-  db.collection('categories').orderBy('createdAt').onSnapshot(snap => {
-    cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  db.collection('categories').onSnapshot(snap => {
+    cats = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order !== undefined ? a.order : 999) - (b.order !== undefined ? b.order : 999));
     renderCatPicker();
     renderBarChart();
     renderSettings();
@@ -753,9 +753,17 @@ async function confirmDeleteSav() {
 function renderSettings() {
   const el = document.getElementById('settings-cats'); el.innerHTML = '';
   if (!cats.length) { el.innerHTML = '<div class="empty">Ingen kategorier endnu</div>'; return; }
-  cats.forEach(c => {
+  cats.forEach((c, i) => {
     const row = document.createElement('div'); row.className = 'setting-row';
     row.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
+        <button class="icon-btn" onclick="moveCat('${c.id}',-1)" ${i===0?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="icon-btn" onclick="moveCat('${c.id}',1)" ${i===cats.length-1?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
       <span style="font-size:20px;">${c.emoji}</span>
       <div class="setting-swatch" style="background:${c.color}"></div>
       <span class="setting-name">${c.name}</span>
@@ -796,6 +804,19 @@ function renderEmojiPicker(sel) {
   });
 }
 
+async function moveCat(id, dir) {
+  const i = cats.findIndex(c => c.id === id);
+  const j = i + dir;
+  if (j < 0 || j >= cats.length) return;
+  // Swap order values
+  const orderA = cats[i].order !== undefined ? cats[i].order : i;
+  const orderB = cats[j].order !== undefined ? cats[j].order : j;
+  const batch = db.batch();
+  batch.update(db.collection('categories').doc(cats[i].id), { order: orderB });
+  batch.update(db.collection('categories').doc(cats[j].id), { order: orderA });
+  await batch.commit();
+}
+
 function renderColorOpts(selectedColor) {
   const el = document.getElementById('color-opts'); el.innerHTML = '';
   COLORS.forEach(c => {
@@ -834,7 +855,7 @@ async function saveCat() {
     await db.collection('categories').doc(editingCatId).update({ emoji: selectedEmoji, name, color });
     showToast('Kategori opdateret ✓');
   } else {
-    await db.collection('categories').add({ emoji: selectedEmoji, name, color, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await db.collection('categories').add({ emoji: selectedEmoji, name, color, order: cats.length, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     showToast('Kategori tilføjet ✓');
   }
   closeModal('modal-cat');
