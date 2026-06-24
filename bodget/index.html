@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Bødget</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Bødget"/>
+<meta name="theme-color" content="#9B72CF"/>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --purple:       #9B72CF;
+  --purple-dark:  #7B52AF;
+  --purple-light: #C4A8E8;
+  --purple-soft:  #F0EAF9;
+  --purple-xsoft: #F7F3FD;
+  --bg:           #F7F3FD;
+  --surface:      #FFFFFF;
+  --border:       #E4D9F5;
+  --text:         #1E1028;
+  --muted:        #8A7AAA;
+  --danger:       #DC2626;
+  --success:      #059669;
+  --radius:       14px;
+  --shadow:       0 2px 12px rgba(155,114,207,0.10);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{background:linear-gradient(135deg,#9B72CF,#B892E0);color:#fff;padding:env(safe-area-inset-top,0) 16px 0;display:flex;align-items:center;justify-content:space-between;min-height:calc(56px + env(safe-area-inset-top,0))}
+.topbar-logo{display:flex;align-items:center;gap:8px}
+.topbar-wordmark{font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#fff}
+.topbar-wordmark span{color:var(--purple-light)}
+.topbar-right{display:flex;gap:6px}
+.topbar-btn{background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.topbar-month-nav{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.topbar-month-nav button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;line-height:1}
+
+/* ── NAV ── */
+.navbar{background:var(--surface);border-top:1.5px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom,0);position:sticky;bottom:0;z-index:100}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 0 6px;background:none;border:none;cursor:pointer;font-size:10px;font-weight:600;color:var(--muted);transition:color .15s}
+.nav-btn.active{color:var(--purple)}
+.nav-btn svg{width:22px;height:22px;stroke-width:1.8;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── VIEWS ── */
+.view{display:none;flex:1;overflow-y:auto;padding:16px;padding-bottom:80px}
+.view.active{display:block}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:12px}
+
+/* ── FIELD ── */
+.field-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.field{width:100%;background:var(--purple-xsoft);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:15px;color:var(--text);outline:none;transition:border-color .15s}
+.field:focus{border-color:var(--purple)}
+.emoji-field{width:60px;text-align:center;font-size:20px}
+
+/* ── PILLS (categories) ── */
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.pill{display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:30px;border:2px solid transparent;background:var(--purple-soft);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text)}
+.pill.sel{color:#fff;border-color:transparent}
+
+/* ── BUTTONS ── */
+.btn-primary{background:var(--purple);color:#fff;border:none;border-radius:10px;padding:13px 20px;font-size:15px;font-weight:700;cursor:pointer;width:100%;transition:opacity .15s}
+.btn-primary:active{opacity:.85}
+.btn-cancel{background:var(--purple-soft);color:var(--purple-dark);border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn-cancel:active{opacity:.75}
+.btn-danger{background:#FEE2E2;color:var(--danger);border:none;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-sm{padding:6px 12px;font-size:12px;font-weight:600;border-radius:8px;border:none;cursor:pointer}
+
+/* ── CHART TOGGLE ── */
+.toggle-row{display:flex;gap:6px;margin-bottom:12px}
+.toggle-btn{flex:1;padding:7px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s}
+.toggle-btn.active{background:var(--purple);color:#fff;border-color:var(--purple)}
+
+/* ── OVERVIEW ── */
+.entry-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.entry-row:last-child{border-bottom:none}
+.entry-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.entry-info{flex:1;min-width:0}
+.entry-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry-date{font-size:11px;color:var(--muted)}
+.entry-note{font-size:11px;color:var(--muted);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry-amt{font-size:15px;font-weight:700;color:var(--purple-dark);flex-shrink:0}
+.entry-actions{display:flex;gap:4px;flex-shrink:0}
+
+/* ── SAVINGS ── */
+.sav-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.sav-row:last-child{border-bottom:none}
+.sav-date-label{font-size:12px;color:var(--muted);font-weight:600}
+.sav-amount{font-size:16px;font-weight:700;color:var(--purple)}
+.sav-actions{display:flex;gap:4px}
+
+/* ── SETTINGS ── */
+.cat-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.cat-item:last-child{border-bottom:none}
+.cat-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.cat-label{flex:1;font-size:14px;font-weight:600}
+.cat-actions{display:flex;gap:4px}
+
+.color-options{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.color-opt{width:30px;height:30px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform .1s}
+.color-opt.sel{border-color:var(--text);transform:scale(1.15)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(30,16,40,.5);display:none;align-items:flex-end;justify-content:center;z-index:200;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:20px 20px 16px 16px;padding:20px;width:100%;max-width:480px;max-height:85dvh;overflow-y:auto}
+.modal h3{font-size:17px;font-weight:800;margin-bottom:16px;color:var(--text)}
+.modal-btns{display:flex;gap:10px;margin-top:16px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--purple-dark);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;z-index:300;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── SUMMARY TOTALS ── */
+.total-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+.total-row + .total-row{border-top:1px solid var(--border)}
+.total-label{font-size:13px;color:var(--muted);font-weight:600}
+.total-amount{font-size:16px;font-weight:800;color:var(--purple)}
+
+/* ── REPORT MODAL ── */
+#report-content .rcat{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+#report-content .rcat:last-child{border-bottom:none}
+#report-content .rcat-name{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+#report-content .rcat-amt{font-size:14px;font-weight:800;color:var(--purple)}
+
+/* ── YEARLY CHART ── */
+#yearly-wrap{overflow:hidden;transition:max-height .3s ease;max-height:0}
+#yearly-wrap.open{max-height:320px}
+
+/* ── LOGO SVG ── */
+.logo-svg{width:28px;height:28px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar" id="topbar">
+  <div class="topbar-logo">
+    <svg class="logo-svg" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+      <rect width="28" height="28" rx="7" fill="rgba(255,255,255,0.2)"/>
+      <text x="14" y="20" text-anchor="middle" font-family="-apple-system,sans-serif" font-weight="800" font-size="13" fill="white">Bø</text>
+    </svg>
+    <span class="topbar-wordmark">B<span>ø</span>dget</span>
+  </div>
+  <div class="topbar-right" id="topbar-right"></div>
+</div>
+
+<!-- VIEWS -->
+<div class="view active" id="view-reg">
+  <div class="card">
+    <div class="card-title">Kategori</div>
+    <div class="pills" id="reg-cats"></div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <div class="field-label">Beløb (kr.)</div>
+        <input class="field" type="number" id="reg-amount" placeholder="0" inputmode="numeric" min="1"/>
+      </div>
+      <div style="flex:1">
+        <div class="field-label">Dato</div>
+        <input class="field" type="date" id="reg-date" style="min-width:0;width:100%"/>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="field-label">Note (valgfri)</div>
+      <input class="field" type="text" id="reg-note" placeholder="Fx Netto, Matas…" maxlength="100"/>
+    </div>
+    <button class="btn-primary" onclick="saveEntry()">Tilføj udgift</button>
+  </div>
+
+  <div class="card" id="chart-card">
+    <div class="card-title">Denne vs. forrige måned</div>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="tog-mtd" onclick="setBarMode('mtd')">MTD</button>
+      <button class="toggle-btn" id="tog-full" onclick="setBarMode('full')">Hele måneden</button>
+    </div>
+    <canvas id="bar-chart" height="200"></canvas>
+  </div>
+</div>
+
+<div class="view" id="view-ov">
+  <div class="card">
+    <div class="topbar-month-nav" style="justify-content:center;margin-bottom:8px">
+      <button onclick="shiftOvMonth(-1)">‹</button>
+      <span id="ov-month-label" onclick="toggleYearlyChart()" style="cursor:pointer;color:var(--purple);font-weight:800">–</span>
+      <button onclick="shiftOvMonth(1)">›</button>
+    </div>
+    <div id="yearly-wrap"><canvas id="yearly-chart" height="160"></canvas></div>
+    <div id="ov-total-row" class="total-row">
+      <span class="total-label">Total</span>
+      <span class="total-amount" id="ov-total">0 kr.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Filtrer</div>
+    <div class="pills" id="ov-filter-pills"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span class="card-title" style="margin-bottom:0">Posteringer</span>
+      <button class="btn-sm" style="background:var(--purple-soft);color:var(--purple-dark)" onclick="openReportModal()">Rapport</button>
+    </div>
+    <div id="ov-list"></div>
+  </div>
+</div>
+
+<div class="view" id="view-sav">
+  <div class="card">
+    <div class="card-title">Registrér opsparing</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <div class="field-label">Saldo (kr.)</div>
+        <input class="field" type="number" id="sav-amount" placeholder="0" inputmode="numeric"/>
+      </div>
+      <div style="flex:1">
+        <div class="field-label">Dato</div>
+        <input class="field" type="date" id="sav-date" style="min-width:0;width:100%"/>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveSaving()">Gem saldo</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Udvikling</div>
+    <div class="toggle-row">
+      <button class="toggle-btn" id="sav-1" onclick="setSavPeriod(1)">1 md.</button>
+      <button class="toggle-btn active" id="sav-6" onclick="setSavPeriod(6)">6 md.</button>
+      <button class="toggle-btn" id="sav-12" onclick="setSavPeriod(12)">12 md.</button>
+    </div>
+    <canvas id="sav-chart" height="200"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Historik</div>
+    <div id="sav-list"></div>
+  </div>
+</div>
+
+<div class="view" id="view-set">
+  <div class="card" style="text-align:center;padding:20px 16px 16px">
+    <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" style="width:60px;height:60px;margin:0 auto 8px">
+      <rect width="60" height="60" rx="15" fill="#7C3AED"/>
+      <text x="30" y="42" text-anchor="middle" font-family="-apple-system,sans-serif" font-weight="800" font-size="26" fill="white">Bø</text>
+    </svg>
+    <div style="font-size:22px;font-weight:900;color:var(--purple)">Bødget</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px">Nadias budget-tracker</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span class="card-title" style="margin-bottom:0">Kategorier</span>
+      <button class="btn-sm" style="background:var(--purple);color:#fff" onclick="openAddCat()">+ Tilføj</button>
+    </div>
+    <div id="cat-list"></div>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <button class="nav-btn active" id="nav-reg" onclick="showView('reg')">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Registrér
+  </button>
+  <button class="nav-btn" id="nav-ov" onclick="showView('ov')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Oversigt
+  </button>
+  <button class="nav-btn" id="nav-sav" onclick="showView('sav')">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Opsparing
+  </button>
+  <button class="nav-btn" id="nav-set" onclick="showView('set')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Indstillinger
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<!-- EDIT ENTRY MODAL -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal">
+    <h3>Rediger postering</h3>
+    <div style="margin-bottom:12px">
+      <div class="field-label">Kategori</div>
+      <div class="pills" id="edit-cats"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1">
+        <div class="field-label">Beløb (kr.)</div>
+        <input class="field" type="number" id="edit-amount" inputmode="numeric"/>
+      </div>
+      <div style="flex:1">
+        <div class="field-label">Dato</div>
+        <input class="field" type="date" id="edit-date" style="min-width:0;width:100%"/>
+      </div>
+    </div>
+    <div style="margin-bottom:4px">
+      <div class="field-label">Note</div>
+      <input class="field" type="text" id="edit-note" maxlength="100"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-edit')">Annuller</button>
+      <button class="btn-primary" style="flex:1" onclick="saveEditEntry()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT SAVING MODAL -->
+<div class="modal-overlay" id="modal-sav-edit">
+  <div class="modal">
+    <h3>Rediger opsparing</h3>
+    <div style="display:flex;gap:10px;margin-bottom:4px">
+      <div style="flex:1">
+        <div class="field-label">Saldo (kr.)</div>
+        <input class="field" type="number" id="sav-edit-amount" inputmode="numeric"/>
+      </div>
+      <div style="flex:1">
+        <div class="field-label">Dato</div>
+        <input class="field" type="date" id="sav-edit-date" style="min-width:0;width:100%"/>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-sav-edit')">Annuller</button>
+      <button class="btn-primary" style="flex:1" onclick="saveSavingEdit()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="modal-del">
+  <div class="modal">
+    <h3>Slet postering?</h3>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px">Denne handling kan ikke fortrydes.</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-del')">Fortryd</button>
+      <button class="btn-danger" style="flex:1" onclick="confirmDelete()">Slet</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="modal-overlay" id="modal-report">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin-bottom:0" id="report-title">Rapport</h3>
+      <button onclick="closeModal('modal-report')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div id="report-content"></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT CAT MODAL -->
+<div class="modal-overlay" id="modal-cat">
+  <div class="modal">
+    <h3 id="cat-modal-title">Tilføj kategori</h3>
+    <div style="display:flex;gap:12px;margin-bottom:12px">
+      <div style="flex:0 0 auto">
+        <div class="field-label">Emoji</div>
+        <input class="field emoji-field" type="text" id="cat-emoji" maxlength="2" placeholder="🛍️"/>
+      </div>
+      <div style="flex:1">
+        <div class="field-label">Navn</div>
+        <input class="field" type="text" id="cat-name" placeholder="Fx Dagligvarer"/>
+      </div>
+    </div>
+    <div class="field-label">Farve</div>
+    <div class="color-options" id="color-opts"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-cat')">Annuller</button>
+      <button class="btn-primary" style="flex:1" onclick="saveCat()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── FIREBASE CONFIG ──
+const firebaseConfig = {
+  apiKey: "AIzaSyBT2JTqdh6Awc4HEgP9crCShCgX5PzyTGI",
+  authDomain: "albudget-52a42.firebaseapp.com",
+  projectId: "albudget-52a42",
+  storageBucket: "albudget-52a42.firebasestorage.app",
+  messagingSenderId: "981970257291",
+  appId: "1:981970257291:web:15ee7d58f94c6389649b8e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ── COLLECTIONS — separate from ALBudget ──
+const COL_CATS    = 'bodget_categories';
+const COL_ENTRIES = 'bodget_entries';
+const COL_SAVINGS = 'bodget_savings';
+
+const COLORS = [
+  '#7C3AED','#A855F7','#EC4899','#F43F5E','#EF4444',
+  '#F97316','#EAB308','#22C55E','#14B8A6','#06B6D4',
+  '#3B82F6','#6366F1','#8B5CF6','#D946EF','#F472B6',
+  '#84CC16','#10B981','#0EA5E9','#64748B','#1E293B',
+  '#92400E','#065F46','#1E3A5F','#4C1D95','#831843'
+];
+
+let cats = [], entries = [], savings = [];
+let savPeriod = 6;
+let ovMonth = new Date(); ovMonth.setDate(1);
+let ovFilterCat = null;
+let pendingDeleteId = null, pendingEditId = null, pendingDelSavId = null;
+let editingCatId = null, editEntrySelCat = null;
+let barChartInst = null, savChartInst = null, yearlyChartInst = null;
+let barMode = 'mtd';
+
+function today() { return new Date().toISOString().split('T')[0]; }
+function fmt(n)  { return Math.round(n).toLocaleString('da-DK'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function getCat(id) { return cats.find(c => c.id === id) || { name:'Ukendt', color:'#888', emoji:'?' }; }
+
+// ── MONTH LABEL ──
+function monthLabel(d) {
+  return d.toLocaleDateString('da-DK', { month:'long', year:'numeric' });
+}
+
+// ── VIEWS ──
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.getElementById('nav-'+v).classList.add('active');
+  updateTopbar(v);
+  if (v === 'reg') renderBarChart();
+  if (v === 'ov')  { renderOvList(); renderBarMonthChart(); }
+  if (v === 'sav') { renderSavChart(); renderSavList(); }
+}
+
+function updateTopbar(v) {
+  const right = document.getElementById('topbar-right');
+  if (v === 'ov') {
+    right.innerHTML = '';
+  } else {
+    right.innerHTML = '';
+  }
+}
+
+// ── BAR CHART (Register) ──
+function setBarMode(m) {
+  barMode = m;
+  document.getElementById('tog-mtd').classList.toggle('active', m==='mtd');
+  document.getElementById('tog-full').classList.toggle('active', m==='full');
+  renderBarChart();
+}
+
+function renderBarChart() {
+  const now = new Date();
+  const thisYear = now.getFullYear(), thisMon = now.getMonth();
+  const todayDay = now.getDate();
+  const prevMon  = thisMon === 0 ? 11 : thisMon-1;
+  const prevYear = thisMon === 0 ? thisYear-1 : thisYear;
+
+  const thisPfx = `${thisYear}-${String(thisMon+1).padStart(2,'0')}`;
+  const prevPfx = `${prevYear}-${String(prevMon+1).padStart(2,'0')}`;
+
+  const thisFull = {}, prevFull = {}, prevMtd = {};
+  cats.forEach(c => { thisFull[c.id]=0; prevFull[c.id]=0; prevMtd[c.id]=0; });
+
+  entries.forEach(e => {
+    if (e.date.startsWith(thisPfx)) thisFull[e.categoryId] = (thisFull[e.categoryId]||0)+e.amount;
+    if (e.date.startsWith(prevPfx)) {
+      prevFull[e.categoryId] = (prevFull[e.categoryId]||0)+e.amount;
+      const day = parseInt(e.date.split('-')[2]);
+      if (day <= todayDay) prevMtd[e.categoryId] = (prevMtd[e.categoryId]||0)+e.amount;
+    }
+  });
+
+  const activeCats = cats.filter(c => (thisFull[c.id]||0)+(prevFull[c.id]||0) > 0);
+  if (!activeCats.length) { if (barChartInst) { barChartInst.destroy(); barChartInst=null; } return; }
+
+  const labels  = activeCats.map(c => c.emoji+' '+c.name);
+  const thisData = activeCats.map(c => thisFull[c.id]||0);
+  const prevData = activeCats.map(c => barMode==='mtd' ? (prevMtd[c.id]||0) : (prevFull[c.id]||0));
+
+  const ctx = document.getElementById('bar-chart').getContext('2d');
+  if (barChartInst) barChartInst.destroy();
+  barChartInst = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Denne måned', data:thisData, backgroundColor: activeCats.map(c=>c.color+'DD'), borderRadius:6, borderSkipped:false },
+      { label:'Forrige', data:prevData, backgroundColor:'rgba(167,139,250,0.25)', borderRadius:6, borderSkipped:false, borderColor:'rgba(167,139,250,0.6)', borderWidth:1 }
+    ]},
+    options:{ responsive:true, plugins:{ legend:{ labels:{ font:{size:11} } } }, scales:{ y:{ ticks:{ callback:v=>fmt(v)+' kr' } } } }
+  });
+}
+
+// ── SAVE ENTRY ──
+let regSelCat = null;
+function renderRegCats() {
+  const el = document.getElementById('reg-cats');
+  el.innerHTML = '';
+  cats.forEach(c => {
+    const p = document.createElement('button');
+    p.className = 'pill' + (regSelCat===c.id?' sel':'');
+    p.style.background = regSelCat===c.id ? c.color : '';
+    p.innerHTML = c.emoji+' '+c.name;
+    p.onclick = () => { regSelCat = c.id; renderRegCats(); };
+    el.appendChild(p);
+  });
+}
+
+async function saveEntry() {
+  const amt = parseInt(document.getElementById('reg-amount').value);
+  const date = document.getElementById('reg-date').value;
+  const note = document.getElementById('reg-note').value.trim();
+  if (!regSelCat) { showToast('Vælg en kategori'); return; }
+  if (!amt || amt < 1) { showToast('Indtast et beløb'); return; }
+  if (!date) { showToast('Vælg en dato'); return; }
+  await db.collection(COL_ENTRIES).add({ categoryId:regSelCat, amount:amt, date, note, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+  document.getElementById('reg-amount').value = '';
+  document.getElementById('reg-note').value = '';
+  showToast('Udgift tilføjet ✓');
+}
+
+// ── OVERVIEW ──
+function shiftOvMonth(dir) {
+  ovMonth = new Date(ovMonth.getFullYear(), ovMonth.getMonth()+dir, 1);
+  document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
+  renderOvList(); renderBarMonthChart();
+}
+
+let yearlyOpen = false;
+function toggleYearlyChart() {
+  yearlyOpen = !yearlyOpen;
+  document.getElementById('yearly-wrap').classList.toggle('open', yearlyOpen);
+  if (yearlyOpen) renderYearlyChart();
+}
+
+function renderBarMonthChart() {
+  // Not separate — yearly chart
+}
+
+function renderOvList() {
+  document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
+  const pfx = `${ovMonth.getFullYear()}-${String(ovMonth.getMonth()+1).padStart(2,'0')}`;
+  let filtered = entries.filter(e => e.date.startsWith(pfx));
+  if (ovFilterCat) filtered = filtered.filter(e => e.categoryId===ovFilterCat);
+  filtered.sort((a,b) => b.date.localeCompare(a.date));
+
+  const total = filtered.reduce((s,e)=>s+e.amount,0);
+  document.getElementById('ov-total').textContent = fmt(total)+' kr.';
+
+  const el = document.getElementById('ov-list');
+  if (!filtered.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px">Ingen posteringer</div>'; return; }
+  el.innerHTML = filtered.map(e => {
+    const c = getCat(e.categoryId);
+    return `<div class="entry-row">
+      <div class="entry-dot" style="background:${c.color}"></div>
+      <div class="entry-info">
+        <div class="entry-name">${c.emoji} ${c.name}</div>
+        <div class="entry-date">${e.date}${e.note ? ' · ' : ''}<span class="entry-note">${e.note||''}</span></div>
+      </div>
+      <div class="entry-amt">${fmt(e.amount)} kr.</div>
+      <div class="entry-actions">
+        <button class="btn-sm" style="background:var(--purple-soft);color:var(--purple-dark)" onclick="openEditEntry('${e.id}')">✏️</button>
+        <button class="btn-sm" style="background:#FEE2E2;color:var(--danger)" onclick="openDeleteEntry('${e.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderOvFilter();
+}
+
+function renderOvFilter() {
+  const el = document.getElementById('ov-filter-pills');
+  el.innerHTML = '';
+  const all = document.createElement('button');
+  all.className = 'pill' + (!ovFilterCat?' sel':'');
+  all.style.background = !ovFilterCat ? 'var(--purple)' : '';
+  all.style.color = !ovFilterCat ? '#fff' : '';
+  all.textContent = 'Alle';
+  all.onclick = () => { ovFilterCat=null; renderOvList(); };
+  el.appendChild(all);
+  cats.forEach(c => {
+    const p = document.createElement('button');
+    p.className = 'pill' + (ovFilterCat===c.id?' sel':'');
+    p.style.background = ovFilterCat===c.id ? c.color : '';
+    p.style.color = ovFilterCat===c.id ? '#fff' : '';
+    p.innerHTML = c.emoji+' '+c.name;
+    p.onclick = () => { ovFilterCat=c.id; renderOvList(); };
+    el.appendChild(p);
+  });
+}
+
+function openEditEntry(id) {
+  const e = entries.find(x=>x.id===id);
+  if (!e) return;
+  pendingEditId = id;
+  editEntrySelCat = e.categoryId;
+  document.getElementById('edit-amount').value = e.amount;
+  document.getElementById('edit-date').value = e.date;
+  document.getElementById('edit-note').value = e.note||'';
+  renderEditCats();
+  openModal('modal-edit');
+}
+
+function renderEditCats() {
+  const el = document.getElementById('edit-cats');
+  el.innerHTML = '';
+  cats.forEach(c => {
+    const p = document.createElement('button');
+    p.className = 'pill'+(editEntrySelCat===c.id?' sel':'');
+    p.style.background = editEntrySelCat===c.id ? c.color : '';
+    p.style.color = editEntrySelCat===c.id ? '#fff' : '';
+    p.innerHTML = c.emoji+' '+c.name;
+    p.onclick = () => { editEntrySelCat=c.id; renderEditCats(); };
+    el.appendChild(p);
+  });
+}
+
+async function saveEditEntry() {
+  const amt = parseInt(document.getElementById('edit-amount').value);
+  const date = document.getElementById('edit-date').value;
+  const note = document.getElementById('edit-note').value.trim();
+  if (!editEntrySelCat||!amt||!date) { showToast('Udfyld alle felter'); return; }
+  await db.collection(COL_ENTRIES).doc(pendingEditId).update({ categoryId:editEntrySelCat, amount:amt, date, note });
+  closeModal('modal-edit'); showToast('Postering opdateret ✓');
+}
+
+function openDeleteEntry(id) { pendingDeleteId=id; openModal('modal-del'); }
+async function confirmDelete() {
+  if (pendingDeleteId) await db.collection(COL_ENTRIES).doc(pendingDeleteId).delete();
+  pendingDeleteId=null; closeModal('modal-del'); showToast('Slettet');
+}
+
+// ── REPORT MODAL ──
+function openReportModal() {
+  const pfx = `${ovMonth.getFullYear()}-${String(ovMonth.getMonth()+1).padStart(2,'0')}`;
+  const filtered = entries.filter(e=>e.date.startsWith(pfx));
+  document.getElementById('report-title').textContent = monthLabel(ovMonth);
+  const totals = {};
+  filtered.forEach(e => totals[e.categoryId]=(totals[e.categoryId]||0)+e.amount);
+  const total = filtered.reduce((s,e)=>s+e.amount,0);
+  const sorted = Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('report-content').innerHTML = `
+    <div class="rcat"><span class="rcat-name" style="font-weight:800">Total</span><span class="rcat-amt" style="font-size:18px">${fmt(total)} kr.</span></div>
+    ${sorted.map(([cid,amt])=>{
+      const c=getCat(cid);
+      const pct=total?Math.round(amt/total*100):0;
+      return `<div class="rcat"><span class="rcat-name"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c.color}"></span>${c.emoji} ${c.name} <span style="color:var(--muted);font-weight:400">(${pct}%)</span></span><span class="rcat-amt">${fmt(amt)} kr.</span></div>`;
+    }).join('')}
+  `;
+  openModal('modal-report');
+}
+
+// ── YEARLY CHART ──
+function renderYearlyChart() {
+  const year = ovMonth.getFullYear();
+  const labels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
+  const data = Array(12).fill(0);
+  entries.forEach(e => {
+    const [y,m] = e.date.split('-').map(Number);
+    if (y===year) data[m-1]+=e.amount;
+  });
+  const ctx = document.getElementById('yearly-chart').getContext('2d');
+  if (yearlyChartInst) yearlyChartInst.destroy();
+  yearlyChartInst = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ data, backgroundColor:'rgba(124,58,237,0.6)', borderRadius:5, borderSkipped:false }]},
+    options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>fmt(v) } } }, onClick:null }
+  });
+}
+
+// ── SAVINGS ──
+function setSavPeriod(p) {
+  savPeriod=p;
+  ['1','6','12'].forEach(x=>document.getElementById('sav-'+x).classList.toggle('active',x==p));
+  renderSavChart();
+}
+
+async function saveSaving() {
+  const amt = parseInt(document.getElementById('sav-amount').value);
+  const date = document.getElementById('sav-date').value;
+  if (!amt||!date) { showToast('Udfyld beløb og dato'); return; }
+  await db.collection(COL_SAVINGS).add({ amount:amt, date, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+  document.getElementById('sav-amount').value='';
+  showToast('Saldo gemt ✓');
+}
+
+function renderSavChart() {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth()-savPeriod);
+  const filtered = savings.filter(s=>new Date(s.date)>=cutoff).sort((a,b)=>a.date.localeCompare(b.date));
+  if (!filtered.length) { if(savChartInst){savChartInst.destroy();savChartInst=null;} return; }
+  const labels = filtered.map(s=>s.date);
+  const data = filtered.map(s=>s.amount);
+
+  // Linear regression for trend
+  const n = data.length;
+  const xs = data.map((_,i)=>i);
+  const sumX=xs.reduce((a,b)=>a+b,0), sumY=data.reduce((a,b)=>a+b,0);
+  const sumXY=xs.reduce((a,i)=>a+i*data[i],0), sumXX=xs.reduce((a,b)=>a+b*b,0);
+  const slope=(n*sumXY-sumX*sumY)/(n*sumXX-sumX*sumX)||0;
+  const intercept=(sumY-slope*sumX)/n;
+  const trend = xs.map(i=>Math.round(intercept+slope*i));
+
+  const ctx = document.getElementById('sav-chart').getContext('2d');
+  if (savChartInst) savChartInst.destroy();
+  savChartInst = new Chart(ctx, {
+    data:{ labels, datasets:[
+      { type:'line', label:'Saldo', data, borderColor:'#7C3AED', backgroundColor:'rgba(124,58,237,0.1)', fill:true, tension:.3, pointBackgroundColor:'#7C3AED', pointRadius:4 },
+      { type:'line', label:'Tendens', data:trend, borderColor:'#A78BFA', borderDash:[5,4], pointRadius:0, tension:0 }
+    ]},
+    options:{ responsive:true, plugins:{legend:{labels:{font:{size:11}}}}, scales:{ y:{ ticks:{ callback:v=>fmt(v)+' kr' } } } }
+  });
+}
+
+function renderSavList() {
+  const el = document.getElementById('sav-list');
+  const sorted = [...savings].sort((a,b)=>b.date.localeCompare(a.date));
+  if (!sorted.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px">Ingen opsparinger endnu</div>'; return; }
+  el.innerHTML = sorted.map(s=>`
+    <div class="sav-row">
+      <span class="sav-date-label">${s.date}</span>
+      <span class="sav-amount">${fmt(s.amount)} kr.</span>
+      <div class="sav-actions">
+        <button class="btn-sm" style="background:var(--purple-soft);color:var(--purple-dark)" onclick="openSavEdit('${s.id}')">✏️</button>
+        <button class="btn-sm" style="background:#FEE2E2;color:var(--danger)" onclick="deleteSav('${s.id}')">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+let editSavId = null;
+function openSavEdit(id) {
+  const s = savings.find(x=>x.id===id);
+  if (!s) return;
+  editSavId=id;
+  document.getElementById('sav-edit-amount').value=s.amount;
+  document.getElementById('sav-edit-date').value=s.date;
+  openModal('modal-sav-edit');
+}
+async function saveSavingEdit() {
+  const amt=parseInt(document.getElementById('sav-edit-amount').value);
+  const date=document.getElementById('sav-edit-date').value;
+  if (!amt||!date) return;
+  await db.collection(COL_SAVINGS).doc(editSavId).update({amount:amt,date});
+  closeModal('modal-sav-edit'); showToast('Opdateret ✓');
+}
+async function deleteSav(id) {
+  if (!confirm('Slet denne opsparingsregistrering?')) return;
+  await db.collection(COL_SAVINGS).doc(id).delete();
+  showToast('Slettet');
+}
+
+// ── CATEGORIES ──
+function renderCatList() {
+  const el = document.getElementById('cat-list');
+  if (!cats.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px">Ingen kategorier endnu — tilføj din første!</div>'; return; }
+  const sorted = [...cats].sort((a,b)=>(a.order||0)-(b.order||0));
+  el.innerHTML = sorted.map((c,i)=>`
+    <div class="cat-item">
+      <div class="cat-dot" style="background:${c.color}"></div>
+      <div class="cat-label">${c.emoji} ${c.name}</div>
+      <div class="cat-actions">
+        <button class="btn-sm" style="background:var(--purple-soft);color:var(--purple-dark)" onclick="moveCat('${c.id}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="btn-sm" style="background:var(--purple-soft);color:var(--purple-dark)" onclick="moveCat('${c.id}',1)" ${i===sorted.length-1?'disabled':''}>↓</button>
+        <button class="btn-sm" style="background:var(--purple-soft);color:var(--purple-dark)" onclick="openEditCat('${c.id}')">✏️</button>
+        <button class="btn-sm btn-danger" onclick="deleteCat('${c.id}')">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function moveCat(id, dir) {
+  const sorted = [...cats].sort((a,b)=>(a.order||0)-(b.order||0));
+  const i = sorted.findIndex(c=>c.id===id);
+  const j = i+dir;
+  if (j<0||j>=sorted.length) return;
+  const batch = db.batch();
+  const orderA = sorted[j].order ?? j;
+  const orderB = sorted[i].order ?? i;
+  if (sorted[i].order===undefined) batch.update(db.collection(COL_CATS).doc(sorted[i].id),{order:orderA});
+  else batch.update(db.collection(COL_CATS).doc(sorted[i].id),{order:orderA});
+  if (sorted[j].order===undefined) batch.update(db.collection(COL_CATS).doc(sorted[j].id),{order:orderB});
+  else batch.update(db.collection(COL_CATS).doc(sorted[j].id),{order:orderB});
+  await batch.commit();
+}
+
+function renderColorOpts(selColor) {
+  const el = document.getElementById('color-opts');
+  el.innerHTML='';
+  COLORS.forEach(c=>{
+    const d=document.createElement('div');
+    d.className='color-opt'+(c===selColor?' sel':'');
+    d.style.background=c;
+    d.onclick=()=>{ document.querySelectorAll('.color-opt').forEach(x=>x.classList.remove('sel')); d.classList.add('sel'); };
+    el.appendChild(d);
+  });
+}
+
+function openAddCat() {
+  editingCatId=null;
+  document.getElementById('cat-modal-title').textContent='Tilføj kategori';
+  document.getElementById('cat-emoji').value='';
+  document.getElementById('cat-name').value='';
+  renderColorOpts(COLORS[0]);
+  openModal('modal-cat');
+}
+
+function openEditCat(id) {
+  const c=getCat(id); editingCatId=id;
+  document.getElementById('cat-modal-title').textContent='Rediger kategori';
+  document.getElementById('cat-emoji').value=c.emoji;
+  document.getElementById('cat-name').value=c.name;
+  renderColorOpts(c.color);
+  openModal('modal-cat');
+}
+
+async function saveCat() {
+  const emoji=document.getElementById('cat-emoji').value.trim()||'📦';
+  const name=document.getElementById('cat-name').value.trim();
+  const selColor=document.querySelector('.color-opt.sel');
+  const color=selColor?selColor.style.background:COLORS[0];
+  if (!name) { showToast('Skriv et navn'); return; }
+  if (editingCatId) {
+    await db.collection(COL_CATS).doc(editingCatId).update({emoji,name,color});
+    showToast('Kategori opdateret ✓');
+  } else {
+    const maxOrder = cats.reduce((m,c)=>Math.max(m,c.order||0),0);
+    await db.collection(COL_CATS).add({emoji,name,color,order:maxOrder+1,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    showToast('Kategori tilføjet ✓');
+  }
+  closeModal('modal-cat');
+}
+
+async function deleteCat(id) {
+  if (!confirm('Slet kategori? Den vil stadig vises på tidligere udgifter.')) return;
+  await db.collection(COL_CATS).doc(id).delete();
+  showToast('Kategori slettet');
+}
+
+// ── FIREBASE LISTENERS ──
+function startListeners() {
+  db.collection(COL_CATS).orderBy('order').onSnapshot(snap=>{
+    cats=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderRegCats(); renderCatList(); renderOvFilter();
+    const active=document.querySelector('.view.active')?.id;
+    if (active==='view-reg') renderBarChart();
+    if (active==='view-ov') renderOvList();
+  });
+
+  db.collection(COL_ENTRIES).orderBy('date','desc').onSnapshot(snap=>{
+    entries=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const active=document.querySelector('.view.active')?.id;
+    if (active==='view-reg') renderBarChart();
+    if (active==='view-ov') renderOvList();
+  });
+
+  db.collection(COL_SAVINGS).orderBy('date','desc').onSnapshot(snap=>{
+    savings=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const active=document.querySelector('.view.active')?.id;
+    if (active==='view-sav') { renderSavChart(); renderSavList(); }
+  });
+}
+
+// ── INIT ──
+document.getElementById('reg-date').value=today();
+document.getElementById('sav-date').value=today();
+document.getElementById('ov-month-label').textContent=monthLabel(ovMonth);
+startListeners();
+</script>
+</body>
+</html>
