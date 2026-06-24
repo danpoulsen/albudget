@@ -234,11 +234,12 @@
 <div class="screen" id="s-opsparing">
   <div class="card" style="margin-top:4px;">
     <div class="field-label">Nuværende balance (kr)</div>
-    <input class="field" type="number" inputmode="decimal" placeholder="Fx 42000" id="sav-amount"/>
+    <input class="field" type="number" inputmode="decimal" placeholder="Fx 5.000" id="sav-amount"/>
     <div class="field-label">Dato</div>
     <input class="field" type="date" id="sav-date"/>
     <button class="btn-primary" onclick="logSavings()">Log balance</button>
   </div>
+  <div id="goals-section" style="display:none;"></div>
   <div class="card">
     <div class="seg-group">
       <button class="seg-btn active" onclick="setSavPeriod(1,this)">1 måned</button>
