@@ -144,6 +144,17 @@
   .color-opt.sel { border-color: var(--text); }
 
   .emoji-field { font-size: 24px; text-align: center; width: 70px; }
+  /* PROGRESS BAR */
+  .goal-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 14px 16px; margin-bottom: 10px; }
+  .goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .goal-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .goal-amounts { font-size: 13px; color: var(--text-muted); }
+  .goal-amounts strong { color: var(--purple-dark); }
+  .progress-bar-bg { background: var(--purple-bg); border-radius: 99px; height: 10px; overflow: hidden; margin-top: 8px; }
+  .progress-bar-fill { background: linear-gradient(90deg, #9B72CF, #B892E0); border-radius: 99px; height: 100%; transition: width 0.5s ease; }
+  .progress-bar-fill.done { background: linear-gradient(90deg, #1D9E75, #22C55E); }
+  .goal-done-badge { font-size: 12px; font-weight: 700; color: #1D9E75; margin-top: 4px; }
+
 
   /* Settings logo */
   .settings-logo { text-align: center; padding: 20px 0 8px; }
@@ -256,6 +267,15 @@
       <div id="settings-cats"></div>
     </div>
     <button class="btn-sm" style="margin-top:12px;width:100%;padding:12px;border-radius:var(--radius-sm);" onclick="openAddCat()">+ Tilføj kategori</button>
+
+    <!-- Opsparingsmål i indstillinger – kun hvis der er mål -->
+    <div id="settings-goals-wrap" style="display:none;margin-top:20px;">
+      <div class="card-title" style="padding:0 0 8px;">Opsparingsmål</div>
+      <div class="card" style="padding:0 16px;">
+        <div id="settings-goals-list"></div>
+      </div>
+    </div>
+    <button class="btn-sm" style="margin-top:12px;width:100%;padding:12px;border-radius:var(--radius-sm);" onclick="openAddGoal()">+ Tilføj opsparingsmål</button>
   </div>
 </div>
 
@@ -368,6 +388,21 @@
   </div>
 </div>
 
+<!-- ADD/EDIT GOAL MODAL -->
+<div class="modal-overlay" id="modal-goal">
+  <div class="modal">
+    <h3 id="goal-modal-title">Tilføj opsparingsmål</h3>
+    <div class="field-label">Navn på mål</div>
+    <input class="field" type="text" id="goal-name" placeholder="Fx ny computer, rejse…"/>
+    <div class="field-label">Målbeløb (kr)</div>
+    <input class="field" type="number" inputmode="decimal" id="goal-amount" placeholder="Fx 8.000"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-goal')">Annuller</button>
+      <button class="btn-primary" style="flex:1;" onclick="saveGoal()">Gem</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── FIREBASE CONFIG ──
 const firebaseConfig = {
@@ -385,12 +420,14 @@ const db = firebase.firestore();
 const COL_CATS    = 'bodget_categories';
 const COL_ENTRIES = 'bodget_entries';
 const COL_SAVINGS = 'bodget_savings';
+const COL_GOALS   = 'bodget_goals';
 
 const COLORS = ['#9B72CF','#C084FC','#E879F9','#F472B6','#FB7185','#F97316','#EAB308','#22C55E','#14B8A6','#06B6D4','#3B82F6','#6366F1','#1D9E75','#D85A30','#D4537E','#BA7517','#534AB7','#378ADD','#8B4513','#2E8B57','#DC143C','#4682B4','#7B52AF','#5B21B6','#831843'];
 
 let cats = [];
 let entries = [];
 let savings = [];
+let goals = [];
 let savPeriod = 1;
 let barMode = 'mtd';
 
@@ -432,8 +469,8 @@ function showScreen(name, el) {
   document.getElementById('s-' + name).classList.add('active');
   if (el) el.classList.add('active');
   if (name === 'oversigt') renderOversigt();
-  if (name === 'opsparing') renderSavChart();
-  if (name === 'indstillinger') renderSettings();
+  if (name === 'opsparing') { renderSavChart(); renderGoalsOnSavingsScreen(); }
+  if (name === 'indstillinger') { renderSettings(); renderSettingsGoals(); }
   if (name === 'register') { renderCatPicker(); renderBarChart(); }
 }
 
@@ -450,6 +487,12 @@ function startListeners() {
     entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderBarChart();
     renderOversigt();
+  });
+
+  db.collection(COL_GOALS).orderBy('order').onSnapshot(snap => {
+    goals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGoalsOnSavingsScreen();
+    renderSettingsGoals();
   });
 
   db.collection(COL_SAVINGS).orderBy('date').onSnapshot(snap => {
@@ -964,6 +1007,129 @@ async function deleteCat(id) {
   if (!confirm('Slet kategori? Den vil stadig vises på tidligere køb.')) return;
   await db.collection(COL_CATS).doc(id).delete();
   showToast('Kategori slettet');
+}
+
+
+// ── OPSPARINGSMÅL ──
+let editingGoalId = null;
+
+function getCurrentBalance() {
+  if (!savings.length) return 0;
+  const sorted = [...savings].sort((a,b) => b.date.localeCompare(a.date));
+  return sorted[0].amount;
+}
+
+function renderGoalsOnSavingsScreen() {
+  const section = document.getElementById('goals-section');
+  if (!goals.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  const balance = getCurrentBalance();
+  let remaining = balance; // how much balance is "available" for goals
+  let html = '<div class="card-title" style="padding:4px 0 8px;font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Opsparingsmål</div>';
+
+  goals.forEach(g => {
+    const target = g.amount;
+    const allocated = Math.min(remaining, target);
+    const pct = Math.min(100, Math.round(allocated / target * 100));
+    const done = allocated >= target;
+    remaining = Math.max(0, remaining - target);
+
+    html += `<div class="goal-card">
+      <div class="goal-header">
+        <span class="goal-name">${g.name}</span>
+        <span class="goal-amounts">${done ? '<strong>✓ Nået!</strong>' : '<strong>' + fmt(allocated) + '</strong> / ' + fmt(target) + ' kr'}</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill${done ? ' done' : ''}" style="width:${pct}%"></div>
+      </div>
+      ${done ? '<div class="goal-done-badge">🎉 Mål nået — købt det endnu?</div>' : '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">' + pct + '%</div>'}
+    </div>`;
+  });
+
+  section.innerHTML = html;
+}
+
+function renderSettingsGoals() {
+  const wrap = document.getElementById('settings-goals-wrap');
+  const list = document.getElementById('settings-goals-list');
+  if (!goals.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = '';
+  goals.forEach((g, i) => {
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+    row.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
+        <button class="icon-btn" onclick="moveGoal('${g.id}',-1)" ${i===0?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="icon-btn" onclick="moveGoal('${g.id}',1)" ${i===goals.length-1?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+      <span class="setting-name" style="font-size:14px;">🎯 ${g.name}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--purple-dark);margin-right:4px;">${fmt(g.amount)} kr</span>
+      <button class="icon-btn" onclick="openEditGoal('${g.id}')" aria-label="Rediger">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="icon-btn danger" onclick="deleteGoal('${g.id}')" aria-label="Slet">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>`;
+    list.appendChild(row);
+  });
+}
+
+function openAddGoal() {
+  editingGoalId = null;
+  document.getElementById('goal-modal-title').textContent = 'Tilføj opsparingsmål';
+  document.getElementById('goal-name').value = '';
+  document.getElementById('goal-amount').value = '';
+  openModal('modal-goal');
+}
+
+function openEditGoal(id) {
+  const g = goals.find(x => x.id === id); if (!g) return;
+  editingGoalId = id;
+  document.getElementById('goal-modal-title').textContent = 'Rediger mål';
+  document.getElementById('goal-name').value = g.name;
+  document.getElementById('goal-amount').value = g.amount;
+  openModal('modal-goal');
+}
+
+async function saveGoal() {
+  const name = document.getElementById('goal-name').value.trim();
+  const amount = parseFloat(document.getElementById('goal-amount').value);
+  if (!name) { showToast('Skriv et navn'); return; }
+  if (!amount || amount <= 0) { showToast('Skriv et beløb'); return; }
+  if (editingGoalId) {
+    await db.collection(COL_GOALS).doc(editingGoalId).update({ name, amount });
+    showToast('Mål opdateret ✓');
+  } else {
+    await db.collection(COL_GOALS).add({ name, amount, order: goals.length, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    showToast('Mål tilføjet ✓');
+  }
+  closeModal('modal-goal');
+}
+
+async function deleteGoal(id) {
+  if (!confirm('Slet dette mål? (fx fordi du har købt det 🛒)')) return;
+  await db.collection(COL_GOALS).doc(id).delete();
+  showToast('Mål slettet');
+}
+
+async function moveGoal(id, dir) {
+  const i = goals.findIndex(g => g.id === id);
+  const j = i + dir;
+  if (j < 0 || j >= goals.length) return;
+  // Ensure all have order field
+  const batch = db.batch();
+  goals.forEach((g, idx) => {
+    if (g.order === undefined) batch.update(db.collection(COL_GOALS).doc(g.id), { order: idx });
+  });
+  batch.update(db.collection(COL_GOALS).doc(goals[i].id), { order: j });
+  batch.update(db.collection(COL_GOALS).doc(goals[j].id), { order: i });
+  await batch.commit();
 }
 
 // ── INIT ──
