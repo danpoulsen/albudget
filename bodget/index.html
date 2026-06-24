@@ -145,7 +145,7 @@
 
   .emoji-field { font-size: 24px; text-align: center; width: 70px; }
   /* CONFETTI */
-  @keyframes confetti-fall { 0% { transform: translateY(-20px) rotate(0deg); opacity:1; } 100% { transform: translateY(100vh) rotate(720deg); opacity:0; } }
+  @keyframes confetti-fall { 0% { transform: translateY(0) rotate(0deg); opacity:1; } 100% { transform: translateY(105vh) rotate(720deg); opacity:0; } }
   .confetti-piece { position: fixed; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; z-index: 9999; animation: confetti-fall 2s ease-in forwards; }
   .goal-bought { opacity: 0.55; }
   .goal-bought .progress-bar-fill { background: #aaa !important; }
@@ -1049,15 +1049,18 @@ function renderGoalsOnSavingsScreen() {
 
   activeGoals.forEach(g => {
     const target = g.amount;
+    // For progress bar: cumulative (sequential)
     const allocated = Math.min(remaining, target);
     const pct = Math.min(100, Math.round(allocated / target * 100));
-    const done = allocated >= target;
+    const seqDone = allocated >= target;
     remaining = Math.max(0, remaining - target);
+    // Købt-knap vises hvis total balance dækker dette mål alene
+    const canBuy = balance >= target;
 
     let footer = '';
-    if (done) {
+    if (seqDone || canBuy) {
       footer = `<div class="goal-done-badge" style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
-        <span>🎉 Mål nået!</span>
+        <span>${seqDone ? '🎉 Mål nået!' : '💰 Du har råd!'}</span>
         <button onclick="markGoalBought('${g.id}')" style="background:linear-gradient(135deg,#9B72CF,#B892E0);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">🛒 Købt!</button>
       </div>`;
     } else {
@@ -1070,7 +1073,7 @@ function renderGoalsOnSavingsScreen() {
         <span class="goal-amounts"><strong>${fmt(allocated)}</strong> / ${fmt(target)} kr</span>
       </div>
       <div class="progress-bar-bg">
-        <div class="progress-bar-fill${done ? ' done' : ''}" style="width:${pct}%"></div>
+        <div class="progress-bar-fill${seqDone ? ' done' : ''}" style="width:${pct}%"></div>
       </div>
       ${footer}
     </div>`;
@@ -1139,19 +1142,20 @@ function renderSettingsGoals() {
 
 
 function launchConfetti() {
-  const colors = ['#9B72CF','#B892E0','#F472B6','#FDE68A','#86EFAC','#67E8F9'];
-  for (let i = 0; i < 80; i++) {
+  const colors = ['#9B72CF','#B892E0','#F472B6','#FDE68A','#86EFAC','#67E8F9','#FF6B6B','#FFD93D'];
+  for (let i = 0; i < 120; i++) {
     const el = document.createElement('div');
     el.className = 'confetti-piece';
     el.style.left = Math.random() * 100 + 'vw';
+    el.style.top = '-20px';
     el.style.background = colors[Math.floor(Math.random() * colors.length)];
-    el.style.width = (6 + Math.random() * 8) + 'px';
-    el.style.height = (6 + Math.random() * 8) + 'px';
+    el.style.width = (6 + Math.random() * 10) + 'px';
+    el.style.height = (6 + Math.random() * 10) + 'px';
     el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
-    el.style.animationDelay = Math.random() * 0.8 + 's';
-    el.style.animationDuration = (1.5 + Math.random()) + 's';
+    el.style.animationDelay = Math.random() * 1.2 + 's';
+    el.style.animationDuration = (2 + Math.random() * 1.5) + 's';
     document.body.appendChild(el);
-    setTimeout(() => el.remove(), 3000);
+    setTimeout(() => el.remove(), 4000);
   }
 }
 
@@ -1159,7 +1163,24 @@ async function markGoalBought(id) {
   const now = new Date().toISOString().split('T')[0];
   await db.collection(COL_GOALS).doc(id).update({ boughtAt: now });
   launchConfetti();
-  showToast('Tillykke! 🎉 Husk at opdatere din balance');
+  showBigToast('Tillykke! 🎉 Husk at opdatere din balance');
+}
+
+function showBigToast(msg) {
+  let el = document.getElementById('big-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'big-toast';
+    el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.8);background:#2D1B4E;color:#fff;padding:18px 28px;border-radius:20px;font-size:17px;font-weight:700;z-index:9999;opacity:0;transition:all 0.3s;pointer-events:none;text-align:center;max-width:80vw;box-shadow:0 8px 32px rgba(0,0,0,0.3);';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%,-50%) scale(1)';
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%,-50%) scale(0.8)';
+  }, 3500);
 }
 
 function openAddGoal() {
