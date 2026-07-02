@@ -1,1 +1,1285 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Bødget</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Bødget"/>
+<meta name="theme-color" content="#9B72CF"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --purple: #9B72CF;
+    --purple-dark: #7B52AF;
+    --purple-light: #C4A8E8;
+    --purple-bg: #F0EAF9;
+    --purple-border: rgba(155,114,207,0.25);
+    --text: #1a1a1a;
+    --text-muted: #7A6A9A;
+    --border: rgba(0,0,0,0.09);
+    --bg: #F7F3FD;
+    --card: #ffffff;
+    --red: #E24B4A;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); max-width: 480px; margin: 0 auto; min-height: 100vh; }
 
+  /* TOPBAR */
+  .topbar { background: linear-gradient(135deg, #9B72CF, #B892E0); border-bottom: none; padding: 14px 16px 12px; position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-icon { width: 26px; height: 26px; background: rgba(255,255,255,0.25); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #fff; letter-spacing: -1px; }
+  .logo-text { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+  .logo-text span { opacity: 0.8; }
+  .topbar-month { font-size: 13px; color: rgba(255,255,255,0.75); }
+
+  /* SCREENS */
+  .screen { display: none; padding: 16px 16px 100px; }
+  .screen.active { display: block; }
+
+  /* NAVBAR */
+  .navbar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--card); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 12px; cursor: pointer; color: var(--text-muted); font-size: 10px; gap: 3px; border: none; background: none; font-family: inherit; transition: color 0.15s; }
+  .nav-item.active { color: var(--purple); }
+  .nav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* CARDS */
+  .card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; margin-bottom: 12px; overflow: hidden; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+
+  /* FORM */
+  .field-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
+  .field { width: 100%; max-width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; background: var(--bg); color: var(--text); margin-bottom: 12px; outline: none; transition: border-color 0.15s; box-sizing: border-box; display: block; }
+  input[type="date"].field { width: 100%; min-width: 0; appearance: none; -webkit-appearance: none; }
+  .field:focus { border-color: var(--purple); background: #fff; }
+  .btn-primary { width: 100%; padding: 13px; background: linear-gradient(135deg, #9B72CF, #B892E0); color: white; border: none; border-radius: var(--radius-sm); font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.5; }
+  .btn-sm { padding: 7px 13px; font-size: 13px; border: 1px solid var(--border); border-radius: 20px; background: var(--card); color: var(--text); cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+  .btn-sm.active { background: var(--purple); color: white; border-color: var(--purple); }
+
+  /* CAT PILLS */
+  .cat-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .cat-pill { padding: 7px 13px; border-radius: 20px; font-size: 13px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; font-family: inherit; }
+  .cat-pill.sel { border-color: var(--purple); box-shadow: 0 0 0 2px rgba(155,114,207,0.25); }
+
+  /* TOTAL BADGE */
+  .total-badge { background: var(--purple-bg); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .total-badge-label { font-size: 13px; color: var(--purple-dark); font-weight: 500; }
+  .total-badge-value { font-size: 22px; font-weight: 700; color: var(--purple-dark); }
+
+  /* ENTRIES */
+  .entry { display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 10px; }
+  .entry:last-child { border-bottom: none; }
+  .entry-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .entry-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .entry-note { font-size: 12px; color: var(--text-muted); font-style: italic; margin-top: 2px; }
+  .entry-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .entry-amount { font-size: 15px; font-weight: 600; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; border-radius: 4px; display: flex; align-items: center; transition: color 0.15s; }
+  .icon-btn:hover { color: var(--text); }
+  .icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-btn.danger:hover { color: var(--red); }
+
+  /* MONTH NAV */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-nav-label { font-size: 16px; font-weight: 600; }
+  .month-nav-btn { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 14px; cursor: pointer; color: var(--text); font-family: inherit; }
+
+  /* SEGMENT */
+  .seg-group { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }
+  .seg-btn { flex: 1; padding: 9px; font-size: 13px; background: var(--card); color: var(--text-muted); border: none; cursor: pointer; font-family: inherit; font-weight: 500; transition: all 0.15s; }
+  .seg-btn.active { background: var(--purple); color: white; }
+
+  /* SETTINGS */
+  .setting-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-swatch { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+  .setting-name { flex: 1; font-size: 15px; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border-radius: var(--radius) var(--radius) 0 0; padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto; }
+  .modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .modal p { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; }
+  .modal-btns { display: flex; gap: 10px; margin-top: 4px; }
+  .btn-cancel { flex: 1; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; cursor: pointer; font-family: inherit; font-weight: 500; }
+  .btn-danger { flex: 1; padding: 12px; background: var(--red); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; cursor: pointer; font-family: inherit; font-weight: 600; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: #2D1B4E; color: white; padding: 11px 20px; border-radius: 20px; font-size: 14px; font-weight: 500; z-index: 300; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+  /* CHART */
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* REPORT */
+  .report-cat { margin-bottom: 20px; }
+  .report-cat-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 2px solid; margin-bottom: 4px; }
+  .report-entry-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .report-entry-row:last-child { border-bottom: none; }
+
+  /* FILTER CHIPS */
+  .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px; }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 14px; }
+
+  /* COLOR PICKER */
+  .color-options { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .color-opt { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color 0.15s; }
+  .color-opt.sel { border-color: var(--text); }
+
+  .emoji-field { font-size: 24px; text-align: center; width: 70px; }
+  /* CONFETTI */
+  @keyframes confetti-fall { 0% { transform: translateY(0) rotate(0deg); opacity:1; } 100% { transform: translateY(105vh) rotate(720deg); opacity:0; } }
+  .confetti-piece { position: fixed; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; z-index: 9999; animation: confetti-fall 2s ease-in forwards; }
+  .goal-bought { opacity: 0.55; }
+  .goal-bought .progress-bar-fill { background: #aaa !important; }
+  .goal-bought-badge { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-style: italic; }
+  /* PROGRESS BAR */
+  .goal-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); padding: 14px 16px; margin-bottom: 10px; }
+  .goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .goal-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .goal-amounts { font-size: 13px; color: var(--text-muted); }
+  .goal-amounts strong { color: var(--purple-dark); }
+  .progress-bar-bg { background: var(--purple-bg); border-radius: 99px; height: 10px; overflow: hidden; margin-top: 8px; }
+  .progress-bar-fill { background: linear-gradient(90deg, #9B72CF, #B892E0); border-radius: 99px; height: 100%; transition: width 0.5s ease; }
+  .progress-bar-fill.done { background: linear-gradient(90deg, #1D9E75, #22C55E); }
+  .goal-done-badge { font-size: 12px; font-weight: 700; color: #1D9E75; margin-top: 4px; }
+
+
+  /* Settings logo */
+  .settings-logo { text-align: center; padding: 20px 0 8px; }
+  .settings-logo-icon { width: 64px; height: 64px; background: linear-gradient(135deg, #9B72CF, #B892E0); border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 8px; }
+  .settings-logo-name { font-size: 22px; font-weight: 800; color: var(--purple); }
+  .settings-logo-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">Bø</div>
+    <span class="logo-text">B<span>ø</span>dget</span>
+  </div>
+  <span class="topbar-month">v1.0</span>
+</div>
+
+<!-- REGISTRER -->
+<div class="screen active" id="s-register">
+  <div class="card" style="margin-top:4px;">
+    <div class="field-label">Beløb (kr)</div>
+    <input class="field" type="number" inputmode="decimal" placeholder="0" id="reg-amount"/>
+    <div class="field-label">Kategori</div>
+    <div class="cat-pills" id="cat-picker"></div>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="reg-date" style="width:100%;max-width:100%;"/>
+    <div class="field-label">Bemærkning (valgfri)</div>
+    <input class="field" type="text" placeholder="Fx Netto, Matas…" id="reg-note"/>
+    <button class="btn-primary" id="reg-btn" onclick="registerKob()">Registrer køb</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span>Denne måned</span>
+      <span id="bar-total" style="font-size:15px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0;"></span>
+    </div>
+    <div class="seg-group" style="margin-bottom:12px;">
+      <button class="seg-btn active" id="toggle-mtd" onclick="setBarMode('mtd',this)">Måned til dato</button>
+      <button class="seg-btn" id="toggle-full" onclick="setBarMode('full',this)">Hele måneden</button>
+    </div>
+    <div class="chart-wrap" style="height:160px;"><canvas id="bar-chart" role="img" aria-label="Forbrug per kategori denne måned"></canvas></div>
+    <div id="bar-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- OVERSIGT -->
+<div class="screen" id="s-oversigt">
+  <div style="margin-top:4px;">
+    <div id="year-chart-wrap" style="display:none;margin-bottom:12px;">
+      <div class="card">
+        <div class="card-title"><span id="ov-year-label"></span></div>
+        <div class="chart-wrap" style="height:150px;"><canvas id="year-chart" role="img" aria-label="Forbrug per måned"></canvas></div>
+      </div>
+    </div>
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="changeMonth(-1)">‹ Forrige</button>
+      <span class="month-nav-label" id="ov-month-label" onclick="toggleYearChart()" style="cursor:pointer;"></span>
+      <button class="month-nav-btn" onclick="changeMonth(1)">Næste ›</button>
+    </div>
+    <div class="total-badge">
+      <span class="total-badge-label">Totalt brugt</span>
+      <span class="total-badge-value" id="ov-total">0 kr</span>
+    </div>
+    <div class="filter-chips" id="ov-filters"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <button class="btn-sm" onclick="showReport()">📄 Se rapport</button>
+    </div>
+    <div class="card" style="padding:16px;">
+      <div id="ov-entries"><div class="loading">Henter køb...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- OPSPARING -->
+<div class="screen" id="s-opsparing">
+  <div class="card" style="margin-top:4px;">
+    <div class="field-label">Nuværende balance (kr)</div>
+    <input class="field" type="number" inputmode="decimal" placeholder="Fx 5.000" id="sav-amount"/>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="sav-date"/>
+    <button class="btn-primary" onclick="logSavings()">Log balance</button>
+  </div>
+  <div id="goals-section" style="display:none;"></div>
+  <div class="card-title" style="padding:4px 0 8px;font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Opsparingshistorik</div>
+  <div class="card">
+    <div class="seg-group">
+      <button class="seg-btn active" onclick="setSavPeriod(1,this)">1 måned</button>
+      <button class="seg-btn" onclick="setSavPeriod(6,this)">6 måneder</button>
+      <button class="seg-btn" onclick="setSavPeriod(12,this)">12 måneder</button>
+    </div>
+    <div class="chart-wrap" style="height:200px;"><canvas id="sav-chart" role="img" aria-label="Opsparingsgraf"></canvas></div>
+    <div id="sav-trend" style="font-size:13px;color:var(--text-muted);margin-top:10px;text-align:center;"></div>
+  </div>
+  <div class="card" style="padding:0 16px;">
+    <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;padding:14px 0 8px;">Registrerede balancer</div>
+    <div id="sav-entries"></div>
+  </div>
+</div>
+
+<!-- INDSTILLINGER -->
+<div class="screen" id="s-indstillinger">
+  <div style="margin-top:4px;">
+    <div class="settings-logo">
+      <div class="settings-logo-icon">Bø</div>
+      <div class="settings-logo-name">Bødget</div>
+      <div class="settings-logo-sub">Nadias budget-tracker</div>
+    </div>
+    <div class="card-title" style="padding:12px 0 8px;">Kategorier</div>
+    <div class="card" style="padding:0 16px;">
+      <div id="settings-cats"></div>
+    </div>
+    <button class="btn-sm" style="margin-top:12px;width:100%;padding:12px;border-radius:var(--radius-sm);" onclick="openAddCat()">+ Tilføj kategori</button>
+
+    <!-- Opsparingsmål i indstillinger – kun hvis der er mål -->
+    <div id="settings-goals-wrap" style="display:none;margin-top:20px;">
+      <div class="card-title" style="padding:0 0 8px;">Opsparingsmål</div>
+      <div class="card" style="padding:0 16px;">
+        <div id="settings-goals-list"></div>
+      </div>
+    </div>
+    <button class="btn-sm" style="margin-top:12px;width:100%;padding:12px;border-radius:var(--radius-sm);" onclick="openAddGoal()">+ Tilføj opsparingsmål</button>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <button class="nav-item active" onclick="showScreen('register',this)" id="nav-register">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M10 10h4"/><path d="M9 14s1-1 3-1 3 1 3 1"/></svg>
+    Registrer
+  </button>
+  <button class="nav-item" onclick="showScreen('oversigt',this)" id="nav-oversigt">
+    <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+    Oversigt
+  </button>
+  <button class="nav-item" onclick="showScreen('opsparing',this)" id="nav-opsparing">
+    <svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+    Opsparing
+  </button>
+  <button class="nav-item" onclick="showScreen('indstillinger',this)" id="nav-indstillinger">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Indstillinger
+  </button>
+</nav>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal">
+    <h3>Slet køb?</h3>
+    <p>Dette kan ikke fortrydes.</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-delete')">Annuller</button>
+      <button class="btn-danger" onclick="confirmDelete()">Slet</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal">
+    <h3>Rediger køb</h3>
+    <div class="field-label">Beløb (kr)</div>
+    <input class="field" type="number" id="edit-amount"/>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="edit-date"/>
+    <div class="field-label">Bemærkning</div>
+    <input class="field" type="text" id="edit-note"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-edit')">Annuller</button>
+      <button class="btn-primary" style="flex:1;" onclick="confirmEdit()">Gem ændringer</button>
+    </div>
+  </div>
+</div>
+
+<!-- DRILL MODAL -->
+<div class="modal-overlay" id="modal-drill">
+  <div class="modal">
+    <h3 id="drill-title"></h3>
+    <div id="drill-entries" style="margin-top:12px;max-height:50vh;overflow-y:auto;"></div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-cancel" style="flex:1;" onclick="closeModal('modal-drill')">Luk</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="modal-overlay" id="modal-report">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="report-title" style="margin:0;"></h3>
+      <button class="icon-btn" onclick="closeModal('modal-report')" aria-label="Luk">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="report-content"></div>
+  </div>
+</div>
+
+<!-- EDIT SAVINGS MODAL -->
+<div class="modal-overlay" id="modal-edit-sav">
+  <div class="modal">
+    <h3>Rediger balance</h3>
+    <div class="field-label">Balance (kr)</div>
+    <input class="field" type="number" id="edit-sav-amount"/>
+    <div class="field-label">Dato</div>
+    <input class="field" type="date" id="edit-sav-date"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-edit-sav')">Annuller</button>
+      <button class="btn-danger" onclick="confirmDeleteSav()" style="flex:0 0 auto;padding:12px;">Slet</button>
+      <button class="btn-primary" style="flex:1;" onclick="confirmEditSav()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT CAT MODAL -->
+<div class="modal-overlay" id="modal-cat">
+  <div class="modal">
+    <h3 id="cat-modal-title">Tilføj kategori</h3>
+    <div class="field-label">Navn</div>
+    <input class="field" type="text" id="cat-name" placeholder="Fx Dagligvarer"/>
+    <div class="field-label">Emoji</div>
+    <div id="emoji-picker" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
+    <div class="field-label">Farve</div>
+    <div class="color-options" id="color-opts"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-cat')">Annuller</button>
+      <button class="btn-primary" style="flex:1;" onclick="saveCat()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT GOAL MODAL -->
+<div class="modal-overlay" id="modal-goal">
+  <div class="modal">
+    <h3 id="goal-modal-title">Tilføj opsparingsmål</h3>
+    <div class="field-label">Navn på mål</div>
+    <input class="field" type="text" id="goal-name" placeholder="Fx ny computer, rejse…"/>
+    <div class="field-label">Målbeløb (kr)</div>
+    <input class="field" type="number" inputmode="decimal" id="goal-amount" placeholder="Fx 8.000"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modal-goal')">Annuller</button>
+      <button class="btn-primary" style="flex:1;" onclick="saveGoal()">Gem</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── FIREBASE CONFIG ──
+const firebaseConfig = {
+  apiKey: "AIzaSyBT2JTqdh6Awc4HEgP9crCShCgX5PzyTGI",
+  authDomain: "albudget-52a42.firebaseapp.com",
+  projectId: "albudget-52a42",
+  storageBucket: "albudget-52a42.firebasestorage.app",
+  messagingSenderId: "981970257291",
+  appId: "1:981970257291:web:15ee7d58f94c6389649b8e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ── SEPARATE COLLECTIONS – aldrig blandet med ALBudget ──
+const COL_CATS    = 'bodget_categories';
+const COL_ENTRIES = 'bodget_entries';
+const COL_SAVINGS = 'bodget_savings';
+const COL_GOALS   = 'bodget_goals';
+
+const COLORS = ['#9B72CF','#C084FC','#E879F9','#F472B6','#FB7185','#F97316','#EAB308','#22C55E','#14B8A6','#06B6D4','#3B82F6','#6366F1','#1D9E75','#D85A30','#D4537E','#BA7517','#534AB7','#378ADD','#8B4513','#2E8B57','#DC143C','#4682B4','#7B52AF','#5B21B6','#831843'];
+
+let cats = [];
+let entries = [];
+let savings = [];
+let goals = [];
+let savPeriod = 1;
+let barMode = 'mtd';
+
+function setBarMode(mode, btn) {
+  barMode = mode;
+  document.querySelectorAll('#toggle-mtd, #toggle-full').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBarChart();
+}
+
+let ovMonth = new Date();
+ovMonth.setDate(1);
+let ovFilterCat = null;
+let pendingDeleteId = null;
+let pendingEditId = null;
+let editingCatId = null;
+let barChartInst = null;
+let savChartInst = null;
+
+function today() { return new Date().toISOString().split('T')[0]; }
+function fmt(n) { return Math.round(n).toLocaleString('da-DK'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function getCat(id) { return cats.find(c => c.id === id) || { name: 'Ukendt', color: '#888', emoji: '?' }; }
+
+function monthLabel(d) {
+  const s = d.toLocaleDateString('da-DK', { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function showScreen(name, el) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  if (name === 'oversigt') renderOversigt();
+  if (name === 'opsparing') { renderSavChart(); renderGoalsOnSavingsScreen(); }
+  if (name === 'indstillinger') { renderSettings(); renderSettingsGoals(); }
+  if (name === 'register') { renderCatPicker(); renderBarChart(); }
+}
+
+// ── FIREBASE LISTENERS ──
+function startListeners() {
+  db.collection(COL_CATS).onSnapshot(snap => {
+    cats = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order !== undefined ? a.order : 999) - (b.order !== undefined ? b.order : 999));
+    renderCatPicker();
+    renderBarChart();
+    renderSettings();
+  });
+
+  db.collection(COL_ENTRIES).orderBy('date', 'desc').onSnapshot(snap => {
+    entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderBarChart();
+    renderOversigt();
+  });
+
+  db.collection(COL_GOALS).orderBy('order').onSnapshot(snap => {
+    goals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGoalsOnSavingsScreen();
+    renderSettingsGoals();
+  });
+
+  db.collection(COL_SAVINGS).orderBy('date').onSnapshot(snap => {
+    savings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderSavChart();
+    renderSavEntries();
+  });
+}
+
+// ── REGISTER ──
+function renderCatPicker() {
+  const el = document.getElementById('cat-picker');
+  el.innerHTML = '';
+  cats.forEach(c => {
+    const p = document.createElement('button');
+    p.className = 'cat-pill';
+    p.style.background = c.color + '22';
+    p.style.color = c.color;
+    p.textContent = c.emoji + ' ' + c.name;
+    p.dataset.id = c.id;
+    p.onclick = () => {
+      document.querySelectorAll('.cat-pill').forEach(x => x.classList.remove('sel'));
+      p.classList.add('sel');
+    };
+    el.appendChild(p);
+  });
+}
+
+async function registerKob() {
+  const amt = parseFloat(document.getElementById('reg-amount').value);
+  const note = document.getElementById('reg-note').value.trim();
+  const date = document.getElementById('reg-date').value || today();
+  const sel = document.querySelector('.cat-pill.sel');
+  if (!amt || amt <= 0) { showToast('Skriv et beløb'); return; }
+  if (!sel) { showToast('Vælg en kategori'); return; }
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true; btn.textContent = 'Gemmer...';
+  await db.collection(COL_ENTRIES).add({ amount: amt, catId: sel.dataset.id, date, note, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  document.getElementById('reg-amount').value = '';
+  document.getElementById('reg-note').value = '';
+  document.querySelectorAll('.cat-pill').forEach(x => x.classList.remove('sel'));
+  btn.disabled = false; btn.textContent = 'Registrer køb';
+  showToast('Køb registreret ✓');
+}
+
+// ── BAR CHART ──
+function renderBarChart() {
+  if (!cats.length) return;
+  const now = new Date(); now.setDate(1);
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const mo = now.getMonth(), yr = now.getFullYear();
+  const pmo = prev.getMonth(), pyr = prev.getFullYear();
+
+  const curTotals = {}, prevTotals = {};
+  cats.forEach(c => { curTotals[c.id] = 0; prevTotals[c.id] = 0; });
+  entries.forEach(e => {
+    const d = new Date(e.date);
+    if (d.getMonth() === mo && d.getFullYear() === yr && curTotals[e.catId] !== undefined) curTotals[e.catId] += e.amount;
+    if (d.getMonth() === pmo && d.getFullYear() === pyr && prevTotals[e.catId] !== undefined) prevTotals[e.catId] += e.amount;
+  });
+
+  const now2 = new Date();
+  const todayDay = now2.getDate();
+
+  const prevCompareTotals = {};
+  if (barMode === 'mtd') {
+    cats.forEach(c => { prevCompareTotals[c.id] = 0; });
+    entries.forEach(e => {
+      const d = new Date(e.date);
+      if (d.getMonth() === pmo && d.getFullYear() === pyr && d.getDate() <= todayDay && prevCompareTotals[e.catId] !== undefined) {
+        prevCompareTotals[e.catId] += e.amount;
+      }
+    });
+  } else {
+    cats.forEach(c => { prevCompareTotals[c.id] = prevTotals[c.id]; });
+  }
+
+  const labels = cats.map(c => c.emoji);
+  const curData = cats.map(c => curTotals[c.id]);
+  const ghostData = cats.map(c => prevCompareTotals[c.id]);
+
+  const monthTotal = curData.reduce((s, v) => s + v, 0);
+  const totalEl = document.getElementById('bar-total');
+  if (totalEl) totalEl.textContent = fmt(monthTotal) + ' kr';
+  if (barChartInst) { barChartInst.destroy(); barChartInst = null; }
+  barChartInst = new Chart(document.getElementById('bar-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Denne måned', data: curData, backgroundColor: cats.map(c => c.color), borderRadius: 5, order: 1 },
+        { label: barMode === 'mtd' ? 'Sidste måned (MTD)' : 'Sidste måned (total)', data: ghostData, backgroundColor: 'rgba(155,114,207,0.2)', borderColor: 'rgba(155,114,207,0.4)', borderWidth: 1, borderRadius: 5, order: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
+      scales: {
+        x: { ticks: { font: { size: 13 } }, grid: { display: false } },
+        y: { ticks: { callback: v => fmt(v), font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      },
+      onClick: () => {}
+    }
+  });
+
+  const legend = document.getElementById('bar-legend');
+  legend.innerHTML = '';
+  cats.forEach(c => {
+    const s = document.createElement('span');
+    s.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);';
+    s.innerHTML = `<span style="width:8px;height:8px;border-radius:2px;background:${c.color};display:inline-block;"></span>${c.name}`;
+    legend.appendChild(s);
+  });
+}
+
+// ── OVERSIGT ──
+function changeMonth(dir) {
+  ovMonth = new Date(ovMonth.getFullYear(), ovMonth.getMonth() + dir, 1);
+  ovFilterCat = null;
+  renderOversigt();
+}
+
+function renderOversigt() {
+  const mo = ovMonth.getMonth(), yr = ovMonth.getFullYear();
+  document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
+  const rel = entries.filter(e => { const d = new Date(e.date); return d.getMonth() === mo && d.getFullYear() === yr; });
+  const shown = ovFilterCat ? rel.filter(e => e.catId === ovFilterCat) : rel;
+  document.getElementById('ov-total').textContent = fmt(shown.reduce((s, e) => s + e.amount, 0)) + ' kr';
+
+  const fc = document.getElementById('ov-filters');
+  fc.innerHTML = '';
+  const all = document.createElement('button');
+  all.className = 'btn-sm' + (ovFilterCat === null ? ' active' : '');
+  all.textContent = 'Alle'; all.onclick = () => { ovFilterCat = null; renderOversigt(); };
+  fc.appendChild(all);
+  cats.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'btn-sm' + (ovFilterCat === c.id ? ' active' : '');
+    b.textContent = c.emoji + ' ' + c.name;
+    b.onclick = () => { ovFilterCat = c.id; renderOversigt(); };
+    fc.appendChild(b);
+  });
+
+  const el = document.getElementById('ov-entries');
+  if (!shown.length) { el.innerHTML = '<div class="empty">Ingen køb denne måned</div>'; return; }
+  el.innerHTML = '';
+  shown.forEach(e => {
+    const c = getCat(e.catId);
+    const d = new Date(e.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+    const row = document.createElement('div'); row.className = 'entry';
+    row.innerHTML = `
+      <div class="entry-dot" style="background:${c.color}"></div>
+      <div class="entry-info">
+        <div class="entry-title">${c.emoji} ${c.name}</div>
+        <div class="entry-sub">${d}</div>
+        ${e.note ? `<div class="entry-note">${e.note}</div>` : ''}
+      </div>
+      <div class="entry-right">
+        <div class="entry-amount">${fmt(e.amount)} kr</div>
+        <button class="icon-btn" onclick="editEntry('${e.id}')" aria-label="Rediger">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="icon-btn danger" onclick="deleteEntry('${e.id}')" aria-label="Slet">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>`;
+    el.appendChild(row);
+  });
+}
+
+function deleteEntry(id) { pendingDeleteId = id; openModal('modal-delete'); }
+async function confirmDelete() {
+  if (pendingDeleteId) await db.collection(COL_ENTRIES).doc(pendingDeleteId).delete();
+  closeModal('modal-delete'); pendingDeleteId = null;
+  showToast('Køb slettet');
+}
+function editEntry(id) {
+  const e = entries.find(x => x.id === id); if (!e) return;
+  pendingEditId = id;
+  document.getElementById('edit-amount').value = e.amount;
+  document.getElementById('edit-date').value = e.date;
+  document.getElementById('edit-note').value = e.note || '';
+  openModal('modal-edit');
+}
+async function confirmEdit() {
+  const amt = parseFloat(document.getElementById('edit-amount').value);
+  const date = document.getElementById('edit-date').value;
+  const note = document.getElementById('edit-note').value.trim();
+  if (!amt || amt <= 0) { showToast('Ugyldigt beløb'); return; }
+  await db.collection(COL_ENTRIES).doc(pendingEditId).update({ amount: amt, date, note });
+  closeModal('modal-edit'); pendingEditId = null;
+  showToast('Køb opdateret ✓');
+}
+
+let reportChartInst = null;
+let yearChartInst = null;
+let yearChartVisible = false;
+
+function toggleYearChart() {
+  yearChartVisible = !yearChartVisible;
+  const wrap = document.getElementById('year-chart-wrap');
+  wrap.style.display = yearChartVisible ? 'block' : 'none';
+  if (yearChartVisible) renderYearChart();
+}
+
+function renderYearChart() {
+  const yr = ovMonth.getFullYear();
+  document.getElementById('ov-year-label').textContent = yr + ' — klik på en måned';
+  const monthTotals = Array(12).fill(0);
+  entries.forEach(e => {
+    const d = new Date(e.date);
+    if (d.getFullYear() === yr) monthTotals[d.getMonth()] += e.amount;
+  });
+  const labels = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
+  const colors = monthTotals.map((_, i) => i === ovMonth.getMonth() ? '#9B72CF' : 'rgba(155,114,207,0.4)');
+  if (yearChartInst) { yearChartInst.destroy(); yearChartInst = null; }
+  yearChartInst = new Chart(document.getElementById('year-chart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: monthTotals, backgroundColor: colors, borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) + ' kr' } } },
+      scales: {
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { callback: v => fmt(v), font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      },
+      onClick: () => {}
+    }
+  });
+}
+
+function showReport() {
+  const mo = ovMonth.getMonth(), yr = ovMonth.getFullYear();
+  document.getElementById('report-title').textContent = 'Rapport – ' + monthLabel(ovMonth);
+  const rel = entries.filter(e => { const d = new Date(e.date); return d.getMonth() === mo && d.getFullYear() === yr; });
+  const el = document.getElementById('report-content');
+  el.innerHTML = '';
+  const grand = rel.reduce((s, e) => s + e.amount, 0);
+  el.innerHTML += `<div style="display:flex;justify-content:space-between;padding:10px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px;font-weight:600;"><span>Total</span><span>${fmt(grand)} kr</span></div>`;
+  const chartWrap = document.createElement('div');
+  chartWrap.style.cssText = 'margin-bottom:20px;';
+  chartWrap.innerHTML = '<canvas id="report-chart" style="width:100%;height:180px;" role="img" aria-label="Rapport graf"></canvas>';
+  el.appendChild(chartWrap);
+  cats.forEach(c => {
+    const ce = rel.filter(e => e.catId === c.id);
+    if (!ce.length) return;
+    const tot = ce.reduce((s, e) => s + e.amount, 0);
+    const sec = document.createElement('div'); sec.className = 'report-cat';
+    let html = `<div class="report-cat-header" style="border-color:${c.color};"><span style="font-weight:600;">${c.emoji} ${c.name}</span><span style="font-weight:600;color:${c.color};">${fmt(tot)} kr</span></div>`;
+    ce.forEach(e => {
+      const d = new Date(e.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+      html += `<div class="report-entry-row"><div><div>${d}</div>${e.note ? `<div style="font-size:11px;color:var(--text-muted);font-style:italic;">${e.note}</div>` : ''}</div><div>${fmt(e.amount)} kr</div></div>`;
+    });
+    sec.innerHTML = html; el.appendChild(sec);
+  });
+  openModal('modal-report');
+  setTimeout(() => {
+    if (reportChartInst) { reportChartInst.destroy(); reportChartInst = null; }
+    const totals = {};
+    cats.forEach(c => { totals[c.id] = 0; });
+    rel.forEach(e => { if (totals[e.catId] !== undefined) totals[e.catId] += e.amount; });
+    const activeCats = cats.filter(c => totals[c.id] > 0);
+    reportChartInst = new Chart(document.getElementById('report-chart'), {
+      type: 'bar',
+      data: {
+        labels: activeCats.map(c => c.emoji + ' ' + c.name),
+        datasets: [{ data: activeCats.map(c => totals[c.id]), backgroundColor: activeCats.map(c => c.color), borderRadius: 5 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) + ' kr' } } },
+        scales: {
+          x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+        }
+      }
+    });
+  }, 100);
+}
+
+// ── OPSPARING ──
+async function logSavings() {
+  const amt = parseFloat(document.getElementById('sav-amount').value);
+  const date = document.getElementById('sav-date').value || today();
+  if (!amt || amt <= 0) { showToast('Skriv et beløb'); return; }
+  await db.collection(COL_SAVINGS).add({ amount: amt, date, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  document.getElementById('sav-amount').value = '';
+  showToast('Balance logget ✓');
+}
+
+function setSavPeriod(p, btn) {
+  savPeriod = p;
+  document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSavChart();
+}
+
+function renderSavChart() {
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setMonth(cutoff.getMonth() - savPeriod);
+  const data = savings.filter(s => new Date(s.date) >= cutoff).sort((a, b) => a.date.localeCompare(b.date));
+  if (savChartInst) { savChartInst.destroy(); savChartInst = null; }
+  if (data.length < 2) { document.getElementById('sav-trend').textContent = 'Ikke nok data endnu'; return; }
+  const labels = data.map(s => new Date(s.date).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' }));
+  const vals = data.map(s => s.amount);
+  const n = vals.length;
+  const xArr = vals.map((_, i) => i);
+  const xMean = xArr.reduce((a, b) => a + b, 0) / n;
+  const yMean = vals.reduce((a, b) => a + b, 0) / n;
+  const slope = xArr.reduce((s, x, i) => s + (x - xMean) * (vals[i] - yMean), 0) / (xArr.reduce((s, x) => s + (x - xMean) ** 2, 0) || 1);
+  const intercept = yMean - slope * xMean;
+  const trendStart = vals[0];
+  const trendEnd = Math.round(slope * (n - 1) + intercept);
+  const trendVals = xArr.map((x, i) => {
+    if (i === 0) return trendStart;
+    if (i === n - 1) return trendEnd;
+    return Math.round(trendStart + (trendEnd - trendStart) * (i / (n - 1)));
+  });
+  const rising = trendEnd > trendStart;
+  const trendColor = rising ? '#1D9E75' : '#E24B4A';
+  document.getElementById('sav-trend').textContent = rising ? '📈 Opsparingen er opadgående' : '📉 Opsparingen er faldende';
+  savChartInst = new Chart(document.getElementById('sav-chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Balance', data: vals, borderColor: '#9B72CF', backgroundColor: 'rgba(155,114,207,0.07)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#9B72CF', pointBorderColor: '#fff', pointBorderWidth: 2, order: 1 },
+        { label: 'Tendens', data: trendVals, borderColor: trendColor, borderDash: [5, 4], borderWidth: 2, pointRadius: 0, fill: false, order: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) + ' kr' } } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true }, grid: { display: false } },
+        y: { min: Math.max(0, Math.min(...vals) - 10000), max: Math.max(...vals) + 10000, ticks: { callback: v => fmt(v) + ' kr', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+// ── OPSPARING EDIT ──
+let pendingEditSavId = null;
+
+function renderSavEntries() {
+  const el = document.getElementById('sav-entries');
+  if (!el) return;
+  const sorted = [...savings].sort((a,b) => b.date.localeCompare(a.date));
+  if (!sorted.length) { el.innerHTML = '<div class="empty">Ingen balancer logget endnu</div>'; return; }
+  el.innerHTML = '';
+  sorted.forEach(s => {
+    const d = new Date(s.date).toLocaleDateString('da-DK', {day:'numeric', month:'short', year:'numeric'});
+    const row = document.createElement('div');
+    row.className = 'entry';
+    row.innerHTML = `
+      <div class="entry-info"><div class="entry-title">${d}</div></div>
+      <div class="entry-right">
+        <div class="entry-amount">${fmt(s.amount)} kr</div>
+        <button class="icon-btn" onclick="editSav('${s.id}')">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>`;
+    el.appendChild(row);
+  });
+}
+
+function editSav(id) {
+  const s = savings.find(x => x.id === id); if (!s) return;
+  pendingEditSavId = id;
+  document.getElementById('edit-sav-amount').value = s.amount;
+  document.getElementById('edit-sav-date').value = s.date;
+  openModal('modal-edit-sav');
+}
+async function confirmEditSav() {
+  const amt = parseFloat(document.getElementById('edit-sav-amount').value);
+  const date = document.getElementById('edit-sav-date').value;
+  if (!amt || amt <= 0) { showToast('Ugyldigt beløb'); return; }
+  await db.collection(COL_SAVINGS).doc(pendingEditSavId).update({ amount: amt, date });
+  closeModal('modal-edit-sav'); pendingEditSavId = null;
+  showToast('Balance opdateret ✓');
+}
+async function confirmDeleteSav() {
+  if (!confirm('Slet denne balance?')) return;
+  await db.collection(COL_SAVINGS).doc(pendingEditSavId).delete();
+  closeModal('modal-edit-sav'); pendingEditSavId = null;
+  showToast('Balance slettet');
+}
+
+// ── INDSTILLINGER ──
+function renderSettings() {
+  const el = document.getElementById('settings-cats'); el.innerHTML = '';
+  if (!cats.length) { el.innerHTML = '<div class="empty">Ingen kategorier endnu</div>'; return; }
+  cats.forEach((c, i) => {
+    const row = document.createElement('div'); row.className = 'setting-row';
+    row.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
+        <button class="icon-btn" onclick="moveCat('${c.id}',-1)" ${i===0?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="icon-btn" onclick="moveCat('${c.id}',1)" ${i===cats.length-1?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+      <span style="font-size:20px;">${c.emoji}</span>
+      <div class="setting-swatch" style="background:${c.color}"></div>
+      <span class="setting-name">${c.name}</span>
+      <button class="icon-btn" onclick="openEditCat('${c.id}')" aria-label="Rediger">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="icon-btn danger" onclick="deleteCat('${c.id}')" aria-label="Slet">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>`;
+    el.appendChild(row);
+  });
+}
+
+const EMOJIS = [
+  '🛒','🍔','🍕','🍣','☕','🍷',
+  '👶','🧸','🍼','❤️','👨‍👩‍👧','🏠',
+  '🚗','🚌','✈️','⛽','🅿️','🚲',
+  '💊','🏋️','💇','🎬','🎮','📚',
+  '👗','👟','💄','🛍️','🎁','💰',
+  '🔧','🧹','💡','📱','🖥️','📦',
+];
+let selectedEmoji = EMOJIS[0];
+
+function renderEmojiPicker(sel) {
+  selectedEmoji = sel || EMOJIS[0];
+  const el = document.getElementById('emoji-picker'); el.innerHTML = '';
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'font-size:22px;width:40px;height:40px;border-radius:8px;border:2px solid transparent;background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;';
+    btn.textContent = e;
+    if (e === selectedEmoji) btn.style.borderColor = 'var(--purple)';
+    btn.onclick = () => {
+      selectedEmoji = e;
+      document.querySelectorAll('#emoji-picker button').forEach(b => b.style.borderColor = 'transparent');
+      btn.style.borderColor = 'var(--purple)';
+    };
+    el.appendChild(btn);
+  });
+}
+
+async function initCatOrder() {
+  const batch = db.batch();
+  let changed = false;
+  cats.forEach((c, i) => {
+    if (c.order === undefined) {
+      batch.update(db.collection(COL_CATS).doc(c.id), { order: i });
+      changed = true;
+    }
+  });
+  if (changed) await batch.commit();
+}
+
+async function moveCat(id, dir) {
+  await initCatOrder();
+  const i = cats.findIndex(c => c.id === id);
+  const j = i + dir;
+  if (j < 0 || j >= cats.length) return;
+  const batch = db.batch();
+  batch.update(db.collection(COL_CATS).doc(cats[i].id), { order: j });
+  batch.update(db.collection(COL_CATS).doc(cats[j].id), { order: i });
+  await batch.commit();
+}
+
+function renderColorOpts(selectedColor) {
+  const el = document.getElementById('color-opts'); el.innerHTML = '';
+  COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'color-opt' + (c === selectedColor ? ' sel' : '');
+    d.style.background = c;
+    d.onclick = () => { document.querySelectorAll('.color-opt').forEach(x => x.classList.remove('sel')); d.classList.add('sel'); };
+    el.appendChild(d);
+  });
+}
+
+function openAddCat() {
+  editingCatId = null;
+  document.getElementById('cat-modal-title').textContent = 'Tilføj kategori';
+  document.getElementById('cat-name').value = '';
+  renderEmojiPicker(EMOJIS[0]);
+  renderColorOpts(COLORS[0]);
+  openModal('modal-cat');
+}
+
+function openEditCat(id) {
+  const c = getCat(id); editingCatId = id;
+  document.getElementById('cat-modal-title').textContent = 'Rediger kategori';
+  document.getElementById('cat-name').value = c.name;
+  renderEmojiPicker(c.emoji);
+  renderColorOpts(c.color);
+  openModal('modal-cat');
+}
+
+async function saveCat() {
+  const name = document.getElementById('cat-name').value.trim();
+  const selColor = document.querySelector('.color-opt.sel');
+  const color = selColor ? selColor.style.background : COLORS[0];
+  if (!name) { showToast('Skriv et navn'); return; }
+  if (editingCatId) {
+    await db.collection(COL_CATS).doc(editingCatId).update({ emoji: selectedEmoji, name, color });
+    showToast('Kategori opdateret ✓');
+  } else {
+    await db.collection(COL_CATS).add({ emoji: selectedEmoji, name, color, order: cats.length, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    showToast('Kategori tilføjet ✓');
+  }
+  closeModal('modal-cat');
+}
+
+async function deleteCat(id) {
+  if (!confirm('Slet kategori? Den vil stadig vises på tidligere køb.')) return;
+  await db.collection(COL_CATS).doc(id).delete();
+  showToast('Kategori slettet');
+}
+
+
+// ── OPSPARINGSMÅL ──
+let editingGoalId = null;
+
+function getCurrentBalance() {
+  if (!savings.length) return 0;
+  const sorted = [...savings].sort((a,b) => b.date.localeCompare(a.date));
+  return sorted[0].amount;
+}
+
+let showBoughtGoals = false;
+
+function renderGoalsOnSavingsScreen() {
+  const section = document.getElementById('goals-section');
+  if (!goals.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  const balance = getCurrentBalance();
+  let remaining = balance;
+
+  const activeGoals = goals.filter(g => !g.boughtAt);
+  const boughtGoals = goals.filter(g => !!g.boughtAt);
+
+  // Calculate progress for active goals cumulatively
+  let html = '<div class="card-title" style="padding:4px 0 8px;font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Opsparingsmål</div>';
+
+  if (!activeGoals.length && !boughtGoals.length) {
+    section.style.display = 'none'; return;
+  }
+
+  activeGoals.forEach(g => {
+    const target = g.amount;
+    // For progress bar: cumulative (sequential)
+    const allocated = Math.min(remaining, target);
+    const pct = Math.min(100, Math.round(allocated / target * 100));
+    const seqDone = allocated >= target;
+    remaining = Math.max(0, remaining - target);
+    // Købt-knap vises hvis total balance dækker dette mål alene
+    const canBuy = balance >= target;
+
+    let footer = '';
+    if (seqDone || canBuy) {
+      footer = `<div class="goal-done-badge" style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+        <span>${seqDone ? '🎉 Mål nået!' : '💰 Du har råd!'}</span>
+        <button onclick="markGoalBought('${g.id}')" style="background:linear-gradient(135deg,#9B72CF,#B892E0);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">🛒 Købt!</button>
+      </div>`;
+    } else {
+      footer = `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${pct}%</div>`;
+    }
+
+    html += `<div class="goal-card">
+      <div class="goal-header">
+        <span class="goal-name">${g.name}</span>
+        <span class="goal-amounts"><strong>${fmt(allocated)}</strong> / ${fmt(target)} kr</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill${seqDone ? ' done' : ''}" style="width:${pct}%"></div>
+      </div>
+      ${footer}
+    </div>`;
+  });
+
+  // Toggle button for bought goals
+  if (boughtGoals.length) {
+    html += `<button onclick="toggleBoughtGoals()" style="width:100%;background:none;border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12px;color:var(--text-muted);cursor:pointer;margin-bottom:4px;">
+      ${showBoughtGoals ? '▲ Skjul' : '▼ Vis'} fuldførte mål (${boughtGoals.length})
+    </button>`;
+
+    if (showBoughtGoals) {
+      boughtGoals.forEach(g => {
+        const d = new Date(g.boughtAt).toLocaleDateString('da-DK', {day:'numeric',month:'short',year:'numeric'});
+        html += `<div class="goal-card goal-bought">
+          <div class="goal-header">
+            <span class="goal-name">✓ ${g.name}</span>
+            <span class="goal-amounts"><strong style="color:#1D9E75">✓ Nået!</strong></span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill done" style="width:100%"></div>
+          </div>
+          <div class="goal-bought-badge">🛒 Købt ${d}</div>
+        </div>`;
+      });
+    }
+  }
+
+  section.innerHTML = html;
+}
+
+function toggleBoughtGoals() {
+  showBoughtGoals = !showBoughtGoals;
+  renderGoalsOnSavingsScreen();
+}
+
+let showBoughtGoalsSettings = false;
+
+function renderSettingsGoals() {
+  const wrap = document.getElementById('settings-goals-wrap');
+  const list = document.getElementById('settings-goals-list');
+  if (!goals.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = '';
+
+  const activeGoals = goals.filter(g => !g.boughtAt);
+  const boughtGoals = goals.filter(g => !!g.boughtAt);
+
+  activeGoals.forEach((g, i) => {
+    const row = document.createElement('div');
+    row.className = 'setting-row';
+    row.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:1px;margin-right:2px;">
+        <button class="icon-btn" onclick="moveGoal('${g.id}',-1)" ${i===0?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="icon-btn" onclick="moveGoal('${g.id}',1)" ${i===activeGoals.length-1?'disabled style="opacity:0.2;"':''}>
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+      <span class="setting-name" style="font-size:14px;">🎯 ${g.name}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--purple-dark);margin-right:4px;">${fmt(g.amount)} kr</span>
+      <button class="icon-btn" onclick="openEditGoal('${g.id}')" aria-label="Rediger">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="icon-btn danger" onclick="deleteGoal('${g.id}')" aria-label="Slet">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>`;
+    list.appendChild(row);
+  });
+
+  if (boughtGoals.length) {
+    // Toggle button
+    const toggleRow = document.createElement('div');
+    toggleRow.style.cssText = 'padding:10px 0;border-top:1px solid var(--border);margin-top:4px;';
+    toggleRow.innerHTML = `<button onclick="toggleBoughtGoalsSettings()" style="width:100%;background:none;border:none;font-size:12px;color:var(--text-muted);cursor:pointer;text-align:left;padding:0;">
+      ${showBoughtGoalsSettings ? '▲ Skjul' : '▼ Vis'} fuldførte mål (${boughtGoals.length})
+    </button>`;
+    list.appendChild(toggleRow);
+
+    if (showBoughtGoalsSettings) {
+      boughtGoals.forEach(g => {
+        const d = new Date(g.boughtAt).toLocaleDateString('da-DK', {day:'numeric',month:'short',year:'numeric'});
+        const row = document.createElement('div');
+        row.className = 'setting-row';
+        row.style.opacity = '0.6';
+        row.innerHTML = `
+          <span style="font-size:18px;">🛒</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:600;">✓ ${g.name}</div>
+            <div style="font-size:11px;color:var(--text-muted);">Købt ${d} · ${fmt(g.amount)} kr</div>
+          </div>
+          <button class="icon-btn danger" onclick="deleteGoal('${g.id}')" aria-label="Slet">
+            <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>`;
+        list.appendChild(row);
+      });
+    }
+  }
+}
+
+function toggleBoughtGoalsSettings() {
+  showBoughtGoalsSettings = !showBoughtGoalsSettings;
+  renderSettingsGoals();
+}
+
+
+function launchConfetti() {
+  const colors = ['#9B72CF','#B892E0','#F472B6','#FDE68A','#86EFAC','#67E8F9','#FF6B6B','#FFD93D'];
+  for (let i = 0; i < 120; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.top = '-20px';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.width = (6 + Math.random() * 10) + 'px';
+    el.style.height = (6 + Math.random() * 10) + 'px';
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    el.style.animationDelay = Math.random() * 1.2 + 's';
+    el.style.animationDuration = (2 + Math.random() * 1.5) + 's';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+async function markGoalBought(id) {
+  const now = new Date().toISOString().split('T')[0];
+  await db.collection(COL_GOALS).doc(id).update({ boughtAt: now });
+  launchConfetti();
+  showBigToast('Tillykke! 🎉 Husk at opdatere din balance');
+}
+
+function showBigToast(msg) {
+  let el = document.getElementById('big-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'big-toast';
+    el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.8);background:#2D1B4E;color:#fff;padding:18px 28px;border-radius:20px;font-size:17px;font-weight:700;z-index:9999;opacity:0;transition:all 0.3s;pointer-events:none;text-align:center;max-width:80vw;box-shadow:0 8px 32px rgba(0,0,0,0.3);';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%,-50%) scale(1)';
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%,-50%) scale(0.8)';
+  }, 3500);
+}
+
+function openAddGoal() {
+  editingGoalId = null;
+  document.getElementById('goal-modal-title').textContent = 'Tilføj opsparingsmål';
+  document.getElementById('goal-name').value = '';
+  document.getElementById('goal-amount').value = '';
+  openModal('modal-goal');
+}
+
+function openEditGoal(id) {
+  const g = goals.find(x => x.id === id); if (!g) return;
+  editingGoalId = id;
+  document.getElementById('goal-modal-title').textContent = 'Rediger mål';
+  document.getElementById('goal-name').value = g.name;
+  document.getElementById('goal-amount').value = g.amount;
+  openModal('modal-goal');
+}
+
+async function saveGoal() {
+  const name = document.getElementById('goal-name').value.trim();
+  const amount = parseFloat(document.getElementById('goal-amount').value);
+  if (!name) { showToast('Skriv et navn'); return; }
+  if (!amount || amount <= 0) { showToast('Skriv et beløb'); return; }
+  if (editingGoalId) {
+    await db.collection(COL_GOALS).doc(editingGoalId).update({ name, amount });
+    showToast('Mål opdateret ✓');
+  } else {
+    await db.collection(COL_GOALS).add({ name, amount, order: goals.length, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    showToast('Mål tilføjet ✓');
+  }
+  closeModal('modal-goal');
+}
+
+async function deleteGoal(id) {
+  if (!confirm('Slet dette mål? (fx fordi du har købt det 🛒)')) return;
+  await db.collection(COL_GOALS).doc(id).delete();
+  showToast('Mål slettet');
+}
+
+async function moveGoal(id, dir) {
+  const i = goals.findIndex(g => g.id === id);
+  const j = i + dir;
+  if (j < 0 || j >= goals.length) return;
+  // Ensure all have order field
+  const batch = db.batch();
+  goals.forEach((g, idx) => {
+    if (g.order === undefined) batch.update(db.collection(COL_GOALS).doc(g.id), { order: idx });
+  });
+  batch.update(db.collection(COL_GOALS).doc(goals[i].id), { order: j });
+  batch.update(db.collection(COL_GOALS).doc(goals[j].id), { order: i });
+  await batch.commit();
+}
+
+// ── INIT ──
+document.getElementById('reg-date').value = today();
+document.getElementById('sav-date').value = today();
+document.getElementById('ov-month-label').textContent = monthLabel(ovMonth);
+startListeners();
+</script>
+</body>
+</html>
